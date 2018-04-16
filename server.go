@@ -4,66 +4,29 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"net"
-	"net/http"
 
 	"github.com/gobuffalo/pop"
-	"github.com/grpc-ecosystem/grpc-gateway/runtime"
-	"golang.org/x/net/context"
-	"google.golang.org/grpc"
 
 	"github.com/ivanmtzp/go-microservice/metrics"
 	"github.com/ivanmtzp/go-microservice/log"
 	"github.com/ivanmtzp/go-microservice/config"
+	"github.com/ivanmtzp/go-microservice/grpc"
 )
+
 
 type MicroService struct
 {
-
+	name string
 }
 
-func startGrpcServer(address string) error {
-
-	lis, err := net.Listen("tcp", address)
-	if err != nil {
-		return fmt.Errorf("gRPC failed to listen on tcp port: %s", err)
-	}
-
-	grpcServer := grpc.NewServer()
-
-	log.Infof("starting HTTP/2 gRPC server on %s", address)
-	if err := grpcServer.Serve(lis); err != nil {
-		return fmt.Errorf("gRPC failed to serve: %s", err)
-	}
-
-	return nil
-}
-
-func startRestGrpcGatewayServer(address, grpcAddress string) error {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	mux := runtime.NewServeMux()
-
-	// opts := []grpc.DialOption{grpc.WithInsecure()}
-
-	log.Infof("starting HTTP/1.1 REST server on %s", address)
-	if err := http.ListenAndServe(address, mux); err != nil {
-		return fmt.Errorf("http REST server failed to listen and serve: %s", err)
-	}
-
-	return nil
-}
-
-func (m *MicroService) Init(appName, envPrefix string) {
-	log.AppName(appName)
+func NewMicroService (name, envPrefix string) *MicroService {
+	log.AppName(name)
 
 	if err := config.Read( strings.ToLower(envPrefix), "./config", "microservice", config.Yaml); err != nil {
 		log.FailOnError(err, "error reading configuration file: ./config/microservice.yaml")
 	}
 
-	logLevel := config.GetString("log","level")
+	logLevel := config.GetString("log", "level")
 	if logLevel != "" {
 		err := log.SetLevel(logLevel)
 		if err != nil {
@@ -72,8 +35,9 @@ func (m *MicroService) Init(appName, envPrefix string) {
 	}
 	log.Info("Log level set to ", log.Level())
 	log.Environment(strings.ToUpper(envPrefix))
-}
 
+	return &MicroService{name: name}
+}
 
 
 func (m *MicroService) Run() {
@@ -101,13 +65,15 @@ func (m *MicroService) Run() {
 
 	// fire the gRPC server in a goroutine
 	go func() {
-		err := startGrpcServer(grpcAddress)
+		log.Infof("starting HTTP/2 gRPC server on %s", grpcAddress)
+		err := grpc.RunGrpcServer(grpcAddress)
 		log.FailOnError(err, fmt.Sprintf("Failed to start gRPC server. Host: %s, Port: %d", host, grpcPort))
 	}()
 
 	// fire the REST server in a goroutine
 	go func() {
-		err := startRestGrpcGatewayServer(restAddress, grpcAddress)
+		log.Infof("starting HTTP/1.1 REST server on %s", restAddress)
+		err := grpc.RunRestGrpcGatewayServer(restAddress, grpcAddress)
 		log.FailOnError(err, fmt.Sprintf("Failed to start Http REST server. Host: %s, Port: %d", host, restPort))
 	}()
 
@@ -131,6 +97,7 @@ func (m *MicroService) Run() {
 	select {}
 
 }
+
 
 
 
