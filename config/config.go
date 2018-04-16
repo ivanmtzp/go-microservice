@@ -13,21 +13,7 @@ const (
 	Toml    ConfigFileType = "toml"
 )
 
-const (
-	local	string = "local"
-	dev    string = "dev"
-	stage  string = "stage"
-	prod string = "prod"
-)
-
-var environment string = local
-
-func Environment() string {
-	return environment
-}
-
 func Read(envPrefix, configFilePath, configFileName string, configFileType ConfigFileType) error {
-	viper.SetDefault("environment", local)
 	viper.SetEnvPrefix(envPrefix)
 	viper.AutomaticEnv()
 	replacer := strings.NewReplacer(".", "_")
@@ -41,18 +27,17 @@ func Read(envPrefix, configFilePath, configFileName string, configFileType Confi
 		return err
 	}
 
-	environment = viper.GetString("environment")
 	return nil
 }
 
 func GetString(keys ...string) string {
-	return viper.GetString(environment + "." + strings.Join(keys, "."))
+	return viper.GetString(strings.Join(keys, "."))
 }
 
 func GetInt(keys ...string) int {
-	return viper.GetInt(environment + "." + strings.Join(keys, "."))
+	return viper.GetInt(strings.Join(keys, "."))
 }
 
 func GetBool(keys ...string) bool {
-	return viper.GetBool(environment + "." + strings.Join(keys, "."))
+	return viper.GetBool(strings.Join(keys, "."))
 }

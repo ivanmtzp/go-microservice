@@ -14,13 +14,10 @@ import (
 )
 
 
-type MicroService struct
-{
-	name string
-}
+var grpcServer *grpc.Server
 
-func NewMicroService (name, envPrefix string) *MicroService {
-	log.AppName(name)
+func Configure (name, envPrefix string) {
+	log.SetAppName(name)
 
 	if err := config.Read( strings.ToLower(envPrefix), "./config", "microservice", config.Yaml); err != nil {
 		log.FailOnError(err, "error reading configuration file: ./config/microservice.yaml")
@@ -35,24 +32,20 @@ func NewMicroService (name, envPrefix string) *MicroService {
 	}
 	log.Info("Log level set to ", log.Level())
 	log.Environment(strings.ToUpper(envPrefix))
+}
 
-	return &MicroService{name: name}
+func RegisterGrpcServiceWithHttpGateway(grpcSettings *GrpcSettings, ) {
+	grpcServer = grpc.New(grpcSettings.address)
+
 }
 
 
-func (m *MicroService) Run() {
+
+func Run() {
 	log.Info("starting microservice")
 
-	host := config.GetString("host")
-	grpcPort := config.GetInt("grpc_port")
-	restPort := config.GetInt("rest_port")
-
-	log.Infof("environment: %s, Host: %s, Grpc port: %d, Rest Port: %d", config.Environment(), host, grpcPort, restPort)
-
-	grpcAddress := fmt.Sprintf("%s:%d", host, grpcPort)
-	restAddress := fmt.Sprintf("%s:%d", host, restPort)
-
-	db, err := pop.Connect(config.Environment())
+	pop.ConfigName = "microservice.yml"
+	db, err := pop.Connect("database")
 	if err != nil {
 		log.FailOnError(err, "failed to connect to database")
 	}
@@ -63,19 +56,23 @@ func (m *MicroService) Run() {
 	//	log.FailOnError(err, fmt.Sprintf("ping check to database failed, database url: %s", db.URL()))
 	// }
 
-	// fire the gRPC server in a goroutine
-	go func() {
-		log.Infof("starting HTTP/2 gRPC server on %s", grpcAddress)
-		err := grpc.RunGrpcServer(grpcAddress)
-		log.FailOnError(err, fmt.Sprintf("Failed to start gRPC server. Host: %s, Port: %d", host, grpcPort))
-	}()
+	grpcSettings := ReadGrpcSettings()
+	if grpcSettings.address != "" {
+		// fire the gRPC server in a goroutine
+		go func() {
+			log.Infof("starting HTTP/2 gRPC server on %s", grpcSettings.address)
+			grpcServer.Run()
+			log.FailOnError(err, fmt.Sprint("Failed to start gRPC server " , grpcSettings.address))
+		}()
+		// fire the http grpc gateway in a goroutine
+		go func() {
+			log.Infof("starting HTTP/1.1 REST server on %s", restAddress)
+			err := grpc.RunRestGrpcGatewayServer(restAddress, grpcAddress)
+			log.FailOnError(err, fmt.Sprintf("Failed to start Http REST server. Host: %s, Port: %d", host, restPort))
+		}()
+	}
 
-	// fire the REST server in a goroutine
-	go func() {
-		log.Infof("starting HTTP/1.1 REST server on %s", restAddress)
-		err := grpc.RunRestGrpcGatewayServer(restAddress, grpcAddress)
-		log.FailOnError(err, fmt.Sprintf("Failed to start Http REST server. Host: %s, Port: %d", host, restPort))
-	}()
+
 
 	//	fire the metrics pusher
 	metricsPushEnabled := config.GetBool("metrics", "push_enabled")

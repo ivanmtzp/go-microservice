@@ -24,7 +24,7 @@ func init() {
 	log.SetFormatter(&logFormatter{AppName: ""})
 }
 
-func AppName(appName string) {
+func SetAppName(appName string) {
 	log.SetFormatter(&logFormatter{AppName: appName})
 }
 
