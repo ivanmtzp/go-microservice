@@ -1,48 +1,36 @@
 package microservice
 
 import (
-	"fmt"
-	"strings"
-	"time"
-
-	"github.com/gobuffalo/pop"
-
-	"github.com/ivanmtzp/go-microservice/metrics"
-	"github.com/ivanmtzp/go-microservice/log"
-	"github.com/ivanmtzp/go-microservice/config"
 	"github.com/ivanmtzp/go-microservice/grpc"
+	"github.com/gobuffalo/pop"
+	"github.com/ivanmtzp/go-microservice/log"
+	"fmt"
+	"github.com/ivanmtzp/go-microservice/config"
+	"github.com/ivanmtzp/go-microservice/metrics"
+	"time"
 )
 
 
-var grpcServer *grpc.Server
-
-func Configure (name, envPrefix string) {
-	log.SetAppName(name)
-
-	if err := config.Read( strings.ToLower(envPrefix), "./config", "microservice", config.Yaml); err != nil {
-		log.FailOnError(err, "error reading configuration file: ./config/microservice.yaml")
-	}
-
-	logLevel := config.GetString("log", "level")
-	if logLevel != "" {
-		err := log.SetLevel(logLevel)
-		if err != nil {
-			log.FailOnError(err, fmt.Sprint("configuration error, invalid log level: ", logLevel))
-		}
-	}
-	log.Info("Log level set to ", log.Level())
-	log.Environment(strings.ToUpper(envPrefix))
-}
-
-func RegisterGrpcServiceWithHttpGateway(grpcSettings *GrpcSettings, ) {
-	grpcServer = grpc.New(grpcSettings.address)
+type MicroService struct {
+	name string
+	settings SettingsReader
+	grpcServer *grpc.Server
 
 }
 
 
+func New(name string, sr SettingsReader) *MicroService {
+	return &MicroService{name: name, settings: sr}
+}
 
-func Run() {
-	log.Info("starting microservice")
+func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator,gsr grpc.HttpGatewayServiceRegistrator) *MicroService {
+	ms.grpcServer = grpc.New(ms.settings.GrpcSettings().address, sr).
+		WithGateway(ms.settings.GrpcSettings().gatewayAddress, gsr)
+	return ms
+}
+
+
+func (ms *MicroService) Run() {
 
 	pop.ConfigName = "microservice.yml"
 	db, err := pop.Connect("database")
@@ -56,23 +44,20 @@ func Run() {
 	//	log.FailOnError(err, fmt.Sprintf("ping check to database failed, database url: %s", db.URL()))
 	// }
 
-	grpcSettings := ReadGrpcSettings()
-	if grpcSettings.address != "" {
+	if ms.grpcServer != nil {
 		// fire the gRPC server in a goroutine
 		go func() {
-			log.Infof("starting HTTP/2 gRPC server on %s", grpcSettings.address)
-			grpcServer.Run()
-			log.FailOnError(err, fmt.Sprint("Failed to start gRPC server " , grpcSettings.address))
+			log.Infof("starting HTTP/2 gRPC server on %s", ms.settings.GrpcSettings().address)
+			err:= ms.grpcServer.Run()
+			log.FailOnError(err, fmt.Sprint("failed to start gRPC server " , ms.settings.GrpcSettings().address))
 		}()
 		// fire the http grpc gateway in a goroutine
 		go func() {
-			log.Infof("starting HTTP/1.1 REST server on %s", restAddress)
-			err := grpc.RunRestGrpcGatewayServer(restAddress, grpcAddress)
-			log.FailOnError(err, fmt.Sprintf("Failed to start Http REST server. Host: %s, Port: %d", host, restPort))
+			log.Infof("starting HTTP/1.1 REST server on %s", ms.settings.GrpcSettings().gatewayAddress)
+			err := ms.grpcServer.RunHttpGateway()
+			log.FailOnError(err, fmt.Sprint("failed to start Http gateway server ", ms.settings.GrpcSettings().gatewayAddress))
 		}()
 	}
-
-
 
 	//	fire the metrics pusher
 	metricsPushEnabled := config.GetBool("metrics", "push_enabled")

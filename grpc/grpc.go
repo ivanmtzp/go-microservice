@@ -21,20 +21,30 @@ type HttpGatewayServiceRegistrator interface {
 type Server struct {
 	grpcServer *grpc.Server
 	address string
+	serviceRegistrator ServiceRegistrator
+	gatewayAddress string
+	gatewayServiceRegistrator HttpGatewayServiceRegistrator
+
 }
 
-func New(address string) *Server {
-	return &Server{grpcServer: grpc.NewServer(), address: address}
+func New(address string, sr ServiceRegistrator) *Server {
+	return &Server{grpcServer: grpc.NewServer(), address: address, serviceRegistrator: sr}
+}
+
+func (s *Server) WithGateway(address string, gsr HttpGatewayServiceRegistrator) *Server {
+	s.gatewayAddress = address
+	s.gatewayServiceRegistrator = gsr
+	return s
 }
 
 
-func (s *Server) Run(sr ServiceRegistrator) error {
+func (s *Server) Run() error {
 	lis, err := net.Listen("tcp", s.address)
 	if err != nil {
 		return fmt.Errorf("gRPC failed to listen on tcp port: %s", err)
 	}
 
-	sr.register(s.grpcServer)
+	s.serviceRegistrator.register(s.grpcServer)
 
 	if err := s.grpcServer.Serve(lis); err != nil {
 		return fmt.Errorf("gRPC failed to serve: %s", err)
@@ -42,7 +52,7 @@ func (s *Server) Run(sr ServiceRegistrator) error {
 	return nil
 }
 
-func (s *Server) RunHttpGateway(address string, sr HttpGatewayServiceRegistrator) error {
+func (s *Server) RunHttpGateway() error {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -50,9 +60,9 @@ func (s *Server) RunHttpGateway(address string, sr HttpGatewayServiceRegistrator
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 
-	sr.register(ctx, mux, s.address, opts)
+	s.gatewayServiceRegistrator.register(ctx, mux, s.address, opts)
 
-	if err := http.ListenAndServe(address, mux); err != nil {
+	if err := http.ListenAndServe(s.gatewayAddress, mux); err != nil {
 		return fmt.Errorf("http grpc gateway server failed to listen and serve: %s", err)
 	}
 

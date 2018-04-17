@@ -9,23 +9,34 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type logFormatter struct {
-	AppName string
-}
-
-func (l *logFormatter) Format(entry *log.Entry) ([]byte, error) {
-	timestamp := time.Now().Format(time.RFC3339)
-	hostname, _ := os.Hostname()
-	return []byte(fmt.Sprintf("%s %s %s[%d]: %s %s\n", timestamp, hostname, l.AppName, os.Getpid(), strings.ToUpper(entry.Level.String()), entry.Message)), nil
-}
 
 func init() {
 	log.SetLevel(log.InfoLevel)
-	log.SetFormatter(&logFormatter{AppName: ""})
+	log.SetFormatter(&defaultFormatter{})
 }
 
-func SetAppName(appName string) {
-	log.SetFormatter(&logFormatter{AppName: appName})
+
+type defaultFormatter struct {
+}
+
+func (l *defaultFormatter) Format(entry *log.Entry) ([]byte, error) {
+	timestamp := time.Now().Format(time.RFC3339)
+	hostname, _ := os.Hostname()
+	return []byte(fmt.Sprintf("%s %s [%d]: %s %s\n", timestamp, hostname, os.Getpid(), strings.ToUpper(entry.Level.String()), entry.Message)), nil
+}
+
+type appFormatter struct {
+	appName string
+}
+
+func (l *appFormatter) Format(entry *log.Entry) ([]byte, error) {
+	timestamp := time.Now().Format(time.RFC3339)
+	hostname, _ := os.Hostname()
+	return []byte(fmt.Sprintf("%s %s %s[%d]: %s %s\n", timestamp, hostname, l.appName, os.Getpid(), strings.ToUpper(entry.Level.String()), entry.Message)), nil
+}
+
+func SetAppFormatter(appName string){
+	log.SetFormatter(&appFormatter{appName: appName})
 }
 
 func Level() string {
@@ -128,15 +139,6 @@ func Panicln(args ...interface{}) {
 func FailOnError(err error, msg string) {
 	if err != nil {
 		log.Fatalf("%s: %s", msg, err)
-	}
-}
-
-func Environment(prefix string) {
-  	log.Debug("environment variables: ")
-	for _, e := range os.Environ() {
-		if strings.HasPrefix(e, prefix) {
-			log.Debug(e)
-		}
 	}
 }
 
