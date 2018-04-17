@@ -1,13 +1,15 @@
 package microservice
 
 import (
-	"github.com/ivanmtzp/go-microservice/grpc"
-	"github.com/gobuffalo/pop"
-	"github.com/ivanmtzp/go-microservice/log"
 	"fmt"
+	"time"
+
+	"github.com/gobuffalo/pop"
+
+	"github.com/ivanmtzp/go-microservice/grpc"
+	"github.com/ivanmtzp/go-microservice/log"
 	"github.com/ivanmtzp/go-microservice/config"
 	"github.com/ivanmtzp/go-microservice/metrics"
-	"time"
 )
 
 
@@ -33,7 +35,7 @@ func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator,gsr grpc.H
 func (ms *MicroService) Run() {
 
 	pop.ConfigName = "microservice.yml"
-	db, err := pop.Connect("database")
+	db, err := pop.Connect("local")
 	if err != nil {
 		log.FailOnError(err, "failed to connect to database")
 	}
