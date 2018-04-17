@@ -34,10 +34,17 @@ func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator,gsr grpc.H
 
 func (ms *MicroService) Run() {
 
-	pop.ConfigName = "microservice.yml"
-	db, err := pop.Connect("local")
+	connectionDetails := &pop.ConnectionDetails{	Dialect: "postgres", Database: "marketdatacurve",
+		Host: "localhost", Port: "5432", User: "postgres", Password: "postgres",
+		Pool: 10, IdlePool: 0}
+
+	db, err := pop.NewConnection(connectionDetails)
 	if err != nil {
 		log.FailOnError(err, "failed to connect to database")
+	}
+	err = db.Open()
+	if err != nil {
+		log.FailOnError(err, "couldn't open connection to database ")
 	}
 	defer db.Close()
 
