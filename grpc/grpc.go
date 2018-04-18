@@ -11,11 +11,11 @@ import (
 )
 
 type ServiceRegistrator interface {
-	register (s *grpc.Server)
+	Register (s *grpc.Server)
 }
 
 type HttpGatewayServiceRegistrator interface {
-	registerGateway (ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error)
+	RegisterGateway (ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error)
 }
 
 type Server struct {
@@ -44,7 +44,7 @@ func (s *Server) Run() error {
 		return fmt.Errorf("gRPC failed to listen on tcp port: %s", err)
 	}
 
-	s.serviceRegistrator.register(s.grpcServer)
+	s.serviceRegistrator.Register(s.grpcServer)
 
 	if err := s.grpcServer.Serve(lis); err != nil {
 		return fmt.Errorf("gRPC failed to serve: %s", err)
@@ -60,7 +60,7 @@ func (s *HttpGatewayServer) Run() error {
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 
-	s.serviceRegistrator.registerGateway(ctx, mux, s.address, opts)
+	s.serviceRegistrator.RegisterGateway(ctx, mux, s.address, opts)
 
 	if err := http.ListenAndServe(s.address, mux); err != nil {
 		return fmt.Errorf("http grpc gateway server failed to listen and serve: %s", err)
