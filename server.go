@@ -10,6 +10,9 @@ import (
 	"github.com/ivanmtzp/go-microservice/log"
 	"github.com/ivanmtzp/go-microservice/metrics"
 
+	"github.com/ivanmtzp/go-microservice/config"
+	"os"
+	"strings"
 )
 
 
@@ -25,6 +28,31 @@ type MicroService struct {
 func New(name string, sr SettingsReader) *MicroService {
 	return &MicroService{name: name, settings: sr}
 }
+
+func NewFromSettingsFile(name, envPrefix string) (*MicroService, error) {
+	conf := config.New()
+	if err:= config.New().Read( envPrefix, "./config", "microservice", config.Yaml); err != nil {
+		return nil, fmt.Errorf("error reading configuration file: ./config/microservice.yaml, %s", err)
+	}
+	configSettings := NewConfigSettings(conf)
+	logLevel := configSettings.Log().level
+	if logLevel != "" {
+		if err := log.SetLevel(logLevel); err != nil {
+			return nil, fmt.Errorf("configuration error, invalid log level: %s, ", err)
+		}
+	}
+	log.Infof("log level set to %s", log.Level())
+	log.Debug("environment variables: ")
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, envPrefix) {
+			log.Debug(e)
+		}
+	}
+	return New(name, configSettings), nil
+}
+
+
+
 
 func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator,gsr grpc.HttpGatewayServiceRegistrator) *MicroService {
 	ms.grpcServer = grpc.New(ms.settings.Grpc().address, sr).

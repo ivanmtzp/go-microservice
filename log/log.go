@@ -40,7 +40,7 @@ func SetAppFormatter(appName string){
 }
 
 func Level() string {
-	return string(log.GetLevel())
+	return log.GetLevel().String()
 }
 
 func SetLevel(level string) error {
