@@ -55,11 +55,10 @@ func NewFromSettingsFile(name, envPrefix string) (*MicroService, error) {
 }
 
 
-
-
 func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator, gsr grpc.HttpGatewayServiceRegistrator) *MicroService {
-	ms.grpcServer = grpc.New(ms.settings.Grpc().address, sr)
-	ms.httpGatewayServer = grpc.NewHttpGateway(ms.settings.Grpc().gatewayAddress, gsr)
+	grpcSettings := ms.settings.Grpc()
+	ms.grpcServer = grpc.New(grpcSettings.address, sr)
+	ms.httpGatewayServer = grpc.NewHttpGateway(grpcSettings.gatewayAddress, grpcSettings.address, gsr)
 	return ms
 }
 
@@ -101,16 +100,16 @@ func (ms *MicroService) Run() {
 	if ms.grpcServer != nil {
 		// fire the gRPC server in a goroutine
 		go func() {
-			log.Infof("starting HTTP/2 gRPC server on %s", ms.settings.Grpc().address)
+			log.Infof("starting HTTP/2 gRPC server on %s", ms.grpcServer.Address())
 			err:= ms.grpcServer.Run()
-			log.FailOnError(err, fmt.Sprint("failed to start gRPC server " , ms.settings.Grpc().address))
+			log.FailOnError(err, fmt.Sprint("failed to start gRPC server " , ms.grpcServer.Address()))
 		}()
 		if ms.httpGatewayServer != nil {
 			// fire the http grpc gateway in a goroutine
 			go func() {
-				log.Infof("starting HTTP/1.1 REST server on %s", ms.settings.Grpc().gatewayAddress)
+				log.Infof("starting HTTP/1.1 gateway server on %s for grpc server endpoint %s", ms.httpGatewayServer.Address(), ms.httpGatewayServer.GrpcEndpointAddress() )
 				err := ms.httpGatewayServer.Run()
-				log.FailOnError(err, fmt.Sprint("failed to start Http gateway server ", ms.settings.Grpc().gatewayAddress))
+				log.FailOnError(err, fmt.Sprint("failed to start Http gateway server ", ms.httpGatewayServer.Address()))
 			}()
 		}
 	}
