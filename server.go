@@ -12,6 +12,7 @@ import (
 	"github.com/ivanmtzp/go-microservice/log"
 	"github.com/ivanmtzp/go-microservice/metrics"
 	"github.com/ivanmtzp/go-microservice/config"
+	"github.com/ivanmtzp/go-microservice/database"
 )
 
 
@@ -20,11 +21,11 @@ type MicroService struct {
 	settings SettingsReader
 	grpcServer *grpc.Server
 	httpGatewayServer *grpc.HttpGatewayServer
-	database *pop.Connection
+	database *database.Database
 	optionalMetricsPusher bool
 }
 
-func (ms *MicroService) Database() *pop.Connection {
+func (ms *MicroService) Database() *database.Database {
 	return ms.database
 }
 
@@ -62,16 +63,17 @@ func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator, gsr grpc.
 	return ms
 }
 
-func (ms *MicroService) WithDatabase() (*MicroService, error) {
-	dbSettings := ms.settings.Database()
-	connectionDetails := &pop.ConnectionDetails{	Dialect: dbSettings.dialect, Database: dbSettings.database,
-		Host: dbSettings.host, Port: strconv.Itoa(dbSettings.port), User: dbSettings.user, Password: dbSettings.password,
-		Pool: dbSettings.pool, IdlePool: 0}
-	connection, err := pop.NewConnection(connectionDetails)
+func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connection)error) (*MicroService, error) {
+	dbs := ms.settings.Database()
+	connectionDetails := &pop.ConnectionDetails{ Dialect: dbs.dialect, Database: dbs.database,
+		Host: dbs.host, Port: strconv.Itoa(dbs.port), User: dbs.user, Password: dbs.password,
+		Pool: dbs.pool, IdlePool: 0}
+
+	db, err := database.New(connectionDetails, healthCheck)
 	if err != nil {
-		return ms, fmt.Errorf("failed to create the database connection %s", err)
+		return nil, err
 	}
-	ms.database = connection
+	ms.database = db
 	return ms, nil
 }
 
@@ -84,18 +86,13 @@ func (ms *MicroService) WithOptionalMetricsPusher() *MicroService {
 func (ms *MicroService) Run() {
 
 	if ms.database != nil {
-		log.Info("connecting to database ", ms.database.URL())
-		err := ms.database.Open()
-		if err != nil {
+		// connect to database
+		log.Info("connecting to database ", ms.database.Connection().URL())
+		if err := ms.database.Open() ; err != nil {
 			log.FailOnError(err, "couldn't open connection to database ")
 		}
 		defer ms.database.Close()
 	}
-
-	// err = handlers.PingDb(db)
-	// if err != nil {
-	//	log.FailOnError(err, fmt.Sprintf("ping check to database failed, database url: %s", db.URL()))
-	// }
 
 	if ms.grpcServer != nil {
 		// fire the gRPC server in a goroutine
@@ -114,8 +111,8 @@ func (ms *MicroService) Run() {
 		}
 	}
 
-	//	fire the metrics pusher
 	if ms.optionalMetricsPusher {
+		//	fire the metrics pusher
 		go func() {
 			mps := ms.settings.MetricsPusher()
 			hostUrl := fmt.Sprintf("http://%s:%d", mps.host, mps.port)
