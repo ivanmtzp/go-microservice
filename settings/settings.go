@@ -1,4 +1,4 @@
-package microservice
+package settings
 
 import (
 	"fmt"
@@ -6,67 +6,67 @@ import (
 	"github.com/ivanmtzp/go-microservice/config"
 )
 
-type SettingsReader interface {
-	Grpc() *GrpcSettings
-	Log() *LogSettings
-	Database() *DatabaseSettings
-	MetricsPusher() *MetricsPusherSettings
+type Reader interface {
+	Grpc() *Grpc
+	Log() *Log
+	Database() *Database
+	MetricsPusher() *MetricsPusher
 }
 
-type GrpcSettings struct {
-	address string
-	gatewayAddress string
+type Grpc struct {
+	Address string
+	GatewayAddress string
 }
 
-type LogSettings struct {
-	level string
+type Log struct {
+	Level string
 }
 
-type DatabaseSettings struct {
-	dialect string
-	database string
-	host string
-	port int
-	user string
-	password string
-	pool int
+type Database struct {
+	Dialect string
+	Database string
+	Host string
+	Port int
+	User string
+	Password string
+	Pool int
 }
 
-type MetricsPusherSettings struct {
-	enabled bool
-	interval int
-	host string
-	port int
-	database string
-	user string
-	password string
+type MetricsPusher struct {
+	Enabled bool
+	Interval int
+	Host string
+	Port int
+	Database string
+	User string
+	Password string
 }
 
 type ConfigSettings struct {
 	config *config.Config
 }
 
-func NewConfigSettings(c *config.Config) *ConfigSettings{
+func NewConfigSettings(c *config.Config) *ConfigSettings {
 	return &ConfigSettings{config: c}
 }
 
-func (c *ConfigSettings) Grpc() *GrpcSettings {
+func (c *ConfigSettings) Grpc() *Grpc {
 	host := c.config.GetString("grpc", "host")
 	grpcPort := c.config.GetInt("grpc", "port")
 	gatewayPort := c.config.GetInt("grpc", "gateway_port")
 	address := fmt.Sprintf("%s:%d", host, grpcPort)
 	gatewayAddress := fmt.Sprintf("%s:%d", host, gatewayPort)
 
-	return &GrpcSettings{address: address, gatewayAddress: gatewayAddress}
+	return &Grpc{Address: address, GatewayAddress: gatewayAddress}
 }
 
-func (c *ConfigSettings) Log() *LogSettings {
+func (c *ConfigSettings) Log() *Log{
 	level := c.config.GetString("log", "level")
 
-	return &LogSettings{level: level}
+	return &Log{Level: level}
 }
 
-func (c *ConfigSettings) Database() *DatabaseSettings {
+func (c *ConfigSettings) Database() *Database {
 	dialect := c.config.GetString("database", "dialect")
 	database := c.config.GetString("database", "name")
 	host := c.config.GetString("database", "host")
@@ -75,13 +75,13 @@ func (c *ConfigSettings) Database() *DatabaseSettings {
 	password := c.config.GetString("database", "password")
 	pool := c.config.GetInt("database", "pool")
 
-	return &DatabaseSettings{dialect: dialect, database: database, host: host, port: port, user: user, password: password, pool: pool}
+	return &Database{Dialect: dialect, Database: database, Host: host, Port: port, User: user, Password: password, Pool: pool}
 }
 
-func (c *ConfigSettings) MetricsPusher() *MetricsPusherSettings {
+func (c *ConfigSettings) MetricsPusher() *MetricsPusher {
 	enabled := c.config.GetBool("metrics", "pusher", "enabled")
 	if !enabled {
-		return &MetricsPusherSettings{}
+		return &MetricsPusher{}
 	}
 	interval := c.config.GetInt("metrics", "pusher", "interval")
 	host := c.config.GetString("metrics",  "pusher", "host")
@@ -90,7 +90,7 @@ func (c *ConfigSettings) MetricsPusher() *MetricsPusherSettings {
 	user := c.config.GetString("metrics",  "pusher", "user")
 	password := c.config.GetString("metrics", "password")
 
-	return &MetricsPusherSettings{enabled: enabled, interval: interval, host: host, port: port, database: database, user: user, password: password}
+	return &MetricsPusher{Enabled: enabled, Interval: interval, Host: host, Port: port, Database: database, User: user, Password: password}
 }
 
 
