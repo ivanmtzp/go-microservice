@@ -57,9 +57,9 @@ func NewConfigSettings(c *config.Config) *ConfigSettings {
 
 func (c *ConfigSettings) Grpc() *Grpc {
 	host := c.config.GetString("host")
-	port := c.config.GetInt("grpc", "port")
+	grpcPort := c.config.GetInt("grpc", "port")
 	gatewayPort := c.config.GetInt("grpc", "gateway_port")
-	address := fmt.Sprintf("%s:%d", host, port)
+	address := fmt.Sprintf("%s:%d", host, grpcPort)
 	gatewayAddress := fmt.Sprintf("%s:%d", host, gatewayPort)
 
 	return &Grpc{Address: address, GatewayAddress: gatewayAddress}
@@ -88,20 +88,19 @@ func (c *ConfigSettings) Monitoring() *Monitoring {
 	port := c.config.GetInt("monitoring", "port")
 	address := fmt.Sprintf("%s:%d", host, port)
 
-
-	influxMetricsPusher := InfluxMetricsPusher{}
-	enabled := c.config.GetBool("monitoring", "influxdb_pusher", "enabled")
+	imp := InfluxMetricsPusher{}
+	enabled := c.config.GetBool("monitoring", "metrics", "influxdb_pusher", "enabled")
 	if enabled {
-		influxMetricsPusher.Interval = c.config.GetInt("monitoring", "metrics", "pusher", "interval")
-		influxMetricsPusher.Host = c.config.GetString("monitoring", "metrics", "pusher", "host")
-		influxMetricsPusher.Port = c.config.GetInt("monitoring", "metrics", "pusher", "port")
-		influxMetricsPusher.Database = c.config.GetString("monitoring", "metrics", "pusher", "database")
-		influxMetricsPusher.User = c.config.GetString("monitoring", "metrics", "pusher", "user")
-		influxMetricsPusher.Password = c.config.GetString("monitoring", "metrics", "password")
+		imp.Interval = c.config.GetInt("monitoring", "metrics", "influxdb_pusher", "interval")
+		imp.Host = c.config.GetString("monitoring", "metrics",  "influxdb_pusher", "host")
+		imp.Port = c.config.GetInt("monitoring", "metrics", "influxdb_pusher", "port")
+		imp.Database = c.config.GetString("monitoring", "metrics",  "influxdb_pusher", "database")
+		imp.User = c.config.GetString("monitoring", "metrics", "influxdb_pusher", "user")
+		imp.Password = c.config.GetString( "monitoring", "metrics", "influxdb_pusher", "password")	
 	}
+	
 
-	return &Monitoring{Address: address, InfluxMetricsPusher: influxMetricsPusher}
-
+	return &Monitoring{Address: address, InfluxMetricsPusher: imp}
 }
 
 

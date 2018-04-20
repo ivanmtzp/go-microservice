@@ -2,7 +2,6 @@ package microservice
 
 import (
 	"fmt"
-	"time"
 	"os"
 	"strings"
 	"strconv"
@@ -10,11 +9,11 @@ import (
 	"github.com/gobuffalo/pop"
 	"github.com/ivanmtzp/go-microservice/grpc"
 	"github.com/ivanmtzp/go-microservice/log"
-	"github.com/ivanmtzp/go-microservice/metrics"
 	"github.com/ivanmtzp/go-microservice/config"
 	"github.com/ivanmtzp/go-microservice/database"
 	"github.com/ivanmtzp/go-microservice/settings"
 	"github.com/ivanmtzp/go-microservice/monitoring"
+	"time"
 )
 
 
@@ -24,7 +23,7 @@ type MicroService struct {
 	grpcServer *grpc.Server
 	httpGatewayServer *grpc.HttpGatewayServer
 	database *database.Database
-	monitoringServer* monitoring.Server
+	monitoringServer *monitoring.Server
 }
 
 func (ms *MicroService) Database() *database.Database {
@@ -79,9 +78,9 @@ func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connectio
 	return ms, nil
 }
 
-func (ms *Microservice) WithMonitoring(pushMetrics bool) *MicroService {
+func (ms *MicroService) WithMonitoring() *MicroService {
 	monSettings := ms.settings.Monitoring()
-	ms.monitoringServer = monitoring.New{Address: monSettings.}
+	ms.monitoringServer = monitoring.New(monSettings.Address)
 	return ms
 }
 
@@ -113,24 +112,21 @@ func (ms *MicroService) Run() {
 		}
 	}
 
-	monSettings := ms.settings.Monitoring()
-	ms.monitoringServer = monitoring.New{Addr}
-	ms.monitoringServer.Run()
 
 	if ms.monitoringServer != nil {
-
-	if ms.optionalMetricsPusher {
+		ms.monitoringServer.Run()
 		//	fire the metrics pusher
 		go func() {
-			mps := &monSettings.InfluxMetricsPusher
+			mps := &ms.settings.Monitoring().InfluxMetricsPusher
 			if mps.Enabled {
 				hostUrl := fmt.Sprintf("http://%s:%d", mps.Host, mps.Port)
 				log.Infof("starting InfluxDb Metrics pushing to: %s, database: %s, user: %s,  with interval: %d", hostUrl,
 					mps.Database, mps.User, mps.Interval)
-				metrics.StartInfluxDbPusher(time.Second*time.Duration(mps.Interval), hostUrl, mps.Database, mps.User, mps.Password)
+				monitoring.StartInfluxDbPusher(time.Second*time.Duration(mps.Interval), hostUrl, mps.Database, mps.User, mps.Password)
 			}
 		}()
 	}
+
 
 	// infinite loop
 	select {}
