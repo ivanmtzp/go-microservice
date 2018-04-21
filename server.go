@@ -127,7 +127,7 @@ func (ms *MicroService) Run() {
 			}
 		}()
 	}
-	
+
 	// infinite loop
 	select {}
 
