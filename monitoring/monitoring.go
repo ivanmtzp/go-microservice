@@ -32,19 +32,19 @@ func metricsHandler() func(http.ResponseWriter, *http.Request) {
 	}
 }
 
-type Server struct {
+type StatusServer struct {
 	address string
 }
 
-func New(address string) *Server {
-	return &Server{address: address}
+func NewStatusServer(address string) *StatusServer {
+	return &StatusServer{address: address}
 }
 
-func (s* Server) Address() string {
+func (s* StatusServer) Address() string {
 	return s.address
 }
 
-func (s *Server) Run() {
+func (s *StatusServer) Run() {
 	http.HandleFunc("/healthy", healthCheckHandler())
 	http.HandleFunc("/metrics", metricsHandler())
 	http.ListenAndServe(s.address, nil)

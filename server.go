@@ -23,7 +23,7 @@ type MicroService struct {
 	grpcServer *grpc.Server
 	httpGatewayServer *grpc.HttpGatewayServer
 	database *database.Database
-	monitoringServer *monitoring.Server
+	statusServer *monitoring.StatusServer
 }
 
 func (ms *MicroService) Database() *database.Database {
@@ -80,7 +80,7 @@ func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connectio
 
 func (ms *MicroService) WithMonitoring() *MicroService {
 	monSettings := ms.settings.Monitoring()
-	ms.monitoringServer = monitoring.New(monSettings.Address)
+	ms.statusServer = monitoring.NewStatusServer(monSettings.Address)
 	return ms
 }
 
@@ -113,9 +113,9 @@ func (ms *MicroService) Run() {
 	}
 
 
-	if ms.monitoringServer != nil {
+	if ms.statusServer != nil {
 		log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address )
-		ms.monitoringServer.Run()
+		ms.statusServer.Run()
 		//	fire the metrics pusher
 		go func() {
 			mps := &ms.settings.Monitoring().InfluxMetricsPusher
@@ -127,8 +127,7 @@ func (ms *MicroService) Run() {
 			}
 		}()
 	}
-
-
+	
 	// infinite loop
 	select {}
 
