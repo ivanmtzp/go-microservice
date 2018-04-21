@@ -114,6 +114,7 @@ func (ms *MicroService) Run() {
 
 
 	if ms.monitoringServer != nil {
+		log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address )
 		ms.monitoringServer.Run()
 		//	fire the metrics pusher
 		go func() {

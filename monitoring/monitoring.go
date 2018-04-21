@@ -4,22 +4,31 @@ import (
 	"net/http"
 	"encoding/json"
 	"fmt"
+	"bytes"
 )
 
 type HealthStatus struct {
-	database string `json:"database"`
+	Database string `json:"database"`
 }
 
-func handler() func(http.ResponseWriter, *http.Request) {
+func healthCheckHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		bytes, err := json.MarshalIndent(&HealthStatus{database: "ok"}, "", "\t")
+		bytes, err := json.MarshalIndent(&HealthStatus{Database: "ok"}, "", "\t")
 		fmt.Print("Esto:", string(bytes))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		w.Write(bytes)
+	}
+}
+
+func metricsHandler() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var buffer bytes.Buffer
+		WriteJsonMetrics(&buffer)
+		w.Write(buffer.Bytes())
 	}
 }
 
@@ -36,6 +45,7 @@ func (s* Server) Address() string {
 }
 
 func (s *Server) Run() {
-	http.HandleFunc("/healthy", handler())
+	http.HandleFunc("/healthy", healthCheckHandler())
+	http.HandleFunc("/metrics", metricsHandler())
 	http.ListenAndServe(s.address, nil)
 }
