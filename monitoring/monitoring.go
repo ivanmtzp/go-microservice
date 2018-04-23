@@ -11,7 +11,11 @@ type HealthStatus struct {
 	Database string `json:"database"`
 }
 
-func healthCheckHandler() func(http.ResponseWriter, *http.Request) {
+type ReadyStatus struct {
+	Database string `json:"database"`
+}
+
+func healthinessHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		bytes, err := json.MarshalIndent(&HealthStatus{Database: "ok"}, "", "\t")
@@ -23,6 +27,20 @@ func healthCheckHandler() func(http.ResponseWriter, *http.Request) {
 		w.Write(bytes)
 	}
 }
+
+func readinessHandler() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+
+		bytes, err := json.MarshalIndent(&ReadyStatus{Database: "ok"}, "", "\t")
+		fmt.Print("Esto:", string(bytes))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Write(bytes)
+	}
+}
+
 
 func metricsHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +63,8 @@ func (s* StatusServer) Address() string {
 }
 
 func (s *StatusServer) Run() {
-	http.HandleFunc("/healthy", healthCheckHandler())
+	http.HandleFunc("/healthy", healthinessHandler())
+	http.HandleFunc("/ready", readinessHandler())
 	http.HandleFunc("/metrics", metricsHandler())
 	http.ListenAndServe(s.address, nil)
 }

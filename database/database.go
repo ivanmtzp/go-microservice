@@ -31,7 +31,7 @@ func (d *Database) HealthCheck() error {
 	return d.healthCheck(d.connection)
 }
 
-func New(cd *pop.ConnectionDetails, healthCheck func (connection *pop.Connection)error) (*Database, error) {
+func New(cd *pop.ConnectionDetails, healthCheck func (connection *pop.Connection) error) (*Database, error) {
 	connection, err := pop.NewConnection(cd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the database connection %s", err)

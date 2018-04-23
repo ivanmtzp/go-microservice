@@ -34,7 +34,7 @@ func New(name string, sr settings.Reader) *MicroService {
 	return &MicroService{name: name, settings: sr}
 }
 
-func NewFromSettingsFile(name, envPrefix string) (*MicroService, error) {
+func NewWithSettingsFile(name, envPrefix string) (*MicroService, error) {
 	conf := config.New()
 	if err:= conf.Read( envPrefix, "./config", "microservice", config.Yaml); err != nil {
 		return nil, fmt.Errorf("error reading configuration file: ./config/microservice.yaml, %s", err)
@@ -57,14 +57,19 @@ func NewFromSettingsFile(name, envPrefix string) (*MicroService, error) {
 }
 
 
-func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegistrator, gsr grpc.HttpGatewayServiceRegistrator) *MicroService {
+func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegister, gsr grpc.GatewayServiceRegister) error {
 	grpcSettings := ms.settings.Grpc()
-	ms.grpcServer = grpc.New(grpcSettings.Address, sr)
-	ms.httpGatewayServer = grpc.NewHttpGateway(grpcSettings.GatewayAddress, grpcSettings.Address, gsr)
-	return ms
+	grpcServer := grpc.New(grpcSettings.Address, sr)
+	gatewayServer, err := grpc.NewHttpGateway(grpcSettings.GatewayAddress, grpcSettings.Address, gsr)
+	if err != nil {
+		return err
+	}
+	ms.grpcServer = grpcServer
+	ms.httpGatewayServer = gatewayServer
+	return nil
 }
 
-func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connection)error) (*MicroService, error) {
+func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connection)error) (error) {
 	dbs := ms.settings.Database()
 	connectionDetails := &pop.ConnectionDetails{ Dialect: dbs.Dialect, Database: dbs.Database,
 		Host: dbs.Host, Port: strconv.Itoa(dbs.Port), User: dbs.User, Password: dbs.Password,
@@ -72,16 +77,15 @@ func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connectio
 
 	db, err := database.New(connectionDetails, healthCheck)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	ms.database = db
-	return ms, nil
+	return nil
 }
 
-func (ms *MicroService) WithMonitoring() *MicroService {
+func (ms *MicroService) WithMonitoring() {
 	monSettings := ms.settings.Monitoring()
 	ms.statusServer = monitoring.NewStatusServer(monSettings.Address)
-	return ms
 }
 
 func (ms *MicroService) Run() {
@@ -114,8 +118,11 @@ func (ms *MicroService) Run() {
 
 
 	if ms.statusServer != nil {
-		log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address )
-		ms.statusServer.Run()
+		// fire the status server
+		go func() {
+			log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address)
+			ms.statusServer.Run()
+		}()
 		//	fire the metrics pusher
 		go func() {
 			mps := &ms.settings.Monitoring().InfluxMetricsPusher
