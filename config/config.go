@@ -4,13 +4,14 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+	"path/filepath"
+	"fmt"
 )
 
 type ConfigFileType string
 
 const (
 	Yaml	ConfigFileType = "yaml"
-	Toml    ConfigFileType = "toml"
 )
 
 type Config struct {
@@ -21,15 +22,20 @@ func New() *Config {
 	return &Config{viper.New()}
 }
 
-func (c *Config) Read(envPrefix, configFilePath, configFileName string, configFileType ConfigFileType) error {
+func (c *Config) Read(envPrefix, filename string) error {
 	c.viper.SetEnvPrefix(envPrefix)
 	c.viper.AutomaticEnv()
 	replacer := strings.NewReplacer(".", "_")
 	c.viper.SetEnvKeyReplacer(replacer)
 
-	c.viper.SetConfigType(string(configFileType))
-	c.viper.SetConfigName(configFileName)
-	c.viper.AddConfigPath(configFilePath)
+	ext := filepath.Ext(filename)
+	if ext != ".yml" && ext != "yaml"{
+		return fmt.Errorf("configuration error, only yaml config file supported")
+	}
+	configDir, configFile := filepath.Split(filename)
+	c.viper.SetConfigType(string(Yaml))
+	c.viper.SetConfigName(strings.Replace(configFile, ext, "", 1))
+	c.viper.AddConfigPath(configDir)
 
 	if err := c.viper.ReadInConfig(); err != nil {
 		return err

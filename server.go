@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 	"strconv"
-
+	"time"
 	"github.com/gobuffalo/pop"
 	"github.com/ivanmtzp/go-microservice/grpc"
 	"github.com/ivanmtzp/go-microservice/log"
@@ -13,7 +13,6 @@ import (
 	"github.com/ivanmtzp/go-microservice/database"
 	"github.com/ivanmtzp/go-microservice/settings"
 	"github.com/ivanmtzp/go-microservice/monitoring"
-	"time"
 )
 
 
@@ -34,11 +33,12 @@ func New(name string, sr settings.Reader) *MicroService {
 	return &MicroService{name: name, settings: sr}
 }
 
-func NewWithSettingsFile(name, envPrefix string) (*MicroService, error) {
+func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error) {
 	conf := config.New()
-	if err:= conf.Read( envPrefix, "./config", "microservice", config.Yaml); err != nil {
-		return nil, fmt.Errorf("error reading configuration file: ./config/microservice.yaml, %s", err)
+	if err:= conf.Read( envPrefix, filename); err != nil {
+		return nil, fmt.Errorf("error reading configuration file %s, %s", filename, err)
 	}
+
 	configSettings := settings.NewConfigSettings(conf)
 	logLevel := configSettings.Log().Level
 	if logLevel != "" {

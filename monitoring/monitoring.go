@@ -3,7 +3,6 @@ package monitoring
 import (
 	"net/http"
 	"encoding/json"
-	"fmt"
 	"bytes"
 )
 
@@ -19,7 +18,6 @@ func healthinessHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		bytes, err := json.MarshalIndent(&HealthStatus{Database: "ok"}, "", "\t")
-		fmt.Print("Esto:", string(bytes))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -32,7 +30,6 @@ func readinessHandler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		bytes, err := json.MarshalIndent(&ReadyStatus{Database: "ok"}, "", "\t")
-		fmt.Print("Esto:", string(bytes))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
