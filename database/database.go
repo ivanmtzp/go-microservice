@@ -5,10 +5,12 @@ import (
 	"fmt"
 )
 
+type HealthCheck func (connection *pop.Connection) error
+
 type Database struct
 {
 	connection *pop.Connection
-	healthCheck func (connection *pop.Connection) error
+	healthCheck HealthCheck
 }
 
 
@@ -31,7 +33,7 @@ func (d *Database) HealthCheck() error {
 	return d.healthCheck(d.connection)
 }
 
-func New(cd *pop.ConnectionDetails, healthCheck func (connection *pop.Connection) error) (*Database, error) {
+func New(cd *pop.ConnectionDetails, healthCheck HealthCheck) (*Database, error) {
 	connection, err := pop.NewConnection(cd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the database connection %s", err)

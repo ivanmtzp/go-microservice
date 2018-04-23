@@ -5,6 +5,8 @@ import (
 	"github.com/rcrowley/go-metrics"
 	"github.com/vrischmann/go-metrics-influxdb"
 	"io"
+	"net/http"
+	"bytes"
 )
 
 func StartInfluxDbPusher(interval time.Duration, hostUrl, database, user, password string) {
@@ -31,8 +33,15 @@ func WriteJsonMetrics(w io.Writer) {
 	metrics.WriteJSONOnce(metricsRegistry, w)
 }
 
-var metricsRegistry metrics.Registry
+func metricsHandler() func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var buffer bytes.Buffer
+		WriteJsonMetrics(&buffer)
+		w.Write(buffer.Bytes())
+	}
+}
 
+var metricsRegistry metrics.Registry
 
 func init() {
 	metricsRegistry = metrics.NewRegistry()

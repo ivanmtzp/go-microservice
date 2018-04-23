@@ -19,10 +19,10 @@ import (
 type MicroService struct {
 	name string
 	settings settings.Reader
+	statusServer *monitoring.StatusServer
 	grpcServer *grpc.Server
 	httpGatewayServer *grpc.HttpGatewayServer
 	database *database.Database
-	statusServer *monitoring.StatusServer
 }
 
 func (ms *MicroService) Database() *database.Database {
@@ -30,7 +30,7 @@ func (ms *MicroService) Database() *database.Database {
 }
 
 func New(name string, sr settings.Reader) *MicroService {
-	return &MicroService{name: name, settings: sr}
+	return &MicroService{name: name, settings: sr, statusServer: monitoring.NewStatusServer()}
 }
 
 func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error) {
@@ -80,12 +80,13 @@ func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connectio
 		return err
 	}
 	ms.database = db
+	ms.statusServer.RegisterHealthCheck("database", ms.database)
 	return nil
 }
 
 func (ms *MicroService) WithMonitoring() {
 	monSettings := ms.settings.Monitoring()
-	ms.statusServer = monitoring.NewStatusServer(monSettings.Address)
+	ms.statusServer.Enable(monSettings.Address)
 }
 
 func (ms *MicroService) Run() {
@@ -116,8 +117,7 @@ func (ms *MicroService) Run() {
 		}
 	}
 
-
-	if ms.statusServer != nil {
+	if ms.statusServer.Enabled() {
 		// fire the status server
 		go func() {
 			log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address)
@@ -133,6 +133,8 @@ func (ms *MicroService) Run() {
 				monitoring.StartInfluxDbPusher(time.Second*time.Duration(mps.Interval), hostUrl, mps.Database, mps.User, mps.Password)
 			}
 		}()
+	} else {
+		log.Warning("monitoring server is disabled")
 	}
 
 	// infinite loop

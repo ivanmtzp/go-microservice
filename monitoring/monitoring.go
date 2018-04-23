@@ -2,66 +2,39 @@ package monitoring
 
 import (
 	"net/http"
-	"encoding/json"
-	"bytes"
 )
 
-type HealthStatus struct {
-	Database string `json:"database"`
-}
-
-type ReadyStatus struct {
-	Database string `json:"database"`
-}
-
-func healthinessHandler() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		bytes, err := json.MarshalIndent(&HealthStatus{Database: "ok"}, "", "\t")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(bytes)
-	}
-}
-
-func readinessHandler() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		bytes, err := json.MarshalIndent(&ReadyStatus{Database: "ok"}, "", "\t")
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(bytes)
-	}
-}
-
-
-func metricsHandler() func(http.ResponseWriter, *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var buffer bytes.Buffer
-		WriteJsonMetrics(&buffer)
-		w.Write(buffer.Bytes())
-	}
-}
 
 type StatusServer struct {
+	enabled bool
 	address string
+	healthChecks HealthChecks
 }
 
-func NewStatusServer(address string) *StatusServer {
-	return &StatusServer{address: address}
+func NewStatusServer() *StatusServer {
+	return &StatusServer{healthChecks: make(HealthChecks)}
 }
 
+func (s* StatusServer) Enable(address string) {
+	s.enabled = true
+	s.address = address
+}
+
+func (s* StatusServer) Enabled() bool {
+	return s.enabled
+}
 func (s* StatusServer) Address() string {
 	return s.address
 }
 
+func (s* StatusServer) RegisterHealthCheck(name string, healthChecker HealthChecker){
+	s.healthChecks[name] = healthChecker
+}
+
 func (s *StatusServer) Run() {
-	http.HandleFunc("/healthy", healthinessHandler())
-	http.HandleFunc("/ready", readinessHandler())
-	http.HandleFunc("/metrics", metricsHandler())
-	http.ListenAndServe(s.address, nil)
+	if s.enabled {
+		http.HandleFunc("/healthy", healthinessHandler(s.healthChecks))
+		http.HandleFunc("/metrics", metricsHandler())
+		http.ListenAndServe(s.address, nil)
+	}
 }
