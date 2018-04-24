@@ -26,6 +26,7 @@ type Server struct {
 type HttpGatewayServer struct {
 	address string
 	grpcEndpointAddress string
+	healthCheckEndpoint string
 
 	context context.Context
 	cancel context.CancelFunc
@@ -40,7 +41,7 @@ func New(address string, sr ServiceRegister) *Server {
 	return &Server{grpcServer: grpcServer, address: address}
 }
 
-func NewHttpGateway(address, grpcEndpointAddress string, gsr GatewayServiceRegister) (*HttpGatewayServer, error) {
+func NewHttpGateway(address, grpcEndpointAddress string, gsr GatewayServiceRegister, healthCheckEndpoint string) (*HttpGatewayServer, error) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	mux := runtime.NewServeMux()
@@ -50,7 +51,7 @@ func NewHttpGateway(address, grpcEndpointAddress string, gsr GatewayServiceRegis
 		return nil, fmt.Errorf("failed to register http grpc gateway server, %s", err)
 	}
 
-	return &HttpGatewayServer{address: address, grpcEndpointAddress: grpcEndpointAddress, context: ctx, cancel: cancel, mux: mux, opts: opts}, nil
+	return &HttpGatewayServer{address: address, grpcEndpointAddress: grpcEndpointAddress, healthCheckEndpoint: healthCheckEndpoint, context: ctx, cancel: cancel, mux: mux, opts: opts}, nil
 }
 
 func (s* Server) Address() string {
@@ -78,7 +79,7 @@ func (s* HttpGatewayServer) GrpcEndpointAddress() string {
 }
 
 func (s *HttpGatewayServer) HealthCheck() error {
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/a", s.address), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", s.address, s.healthCheckEndpoint), nil)
 	if err != nil {
 		return err
 	}
@@ -88,7 +89,7 @@ func (s *HttpGatewayServer) HealthCheck() error {
 	if err != nil {
 		return err
 	}
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("response status: %s", resp.Status)
 	}
 	return nil

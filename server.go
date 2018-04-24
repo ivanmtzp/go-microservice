@@ -57,10 +57,10 @@ func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error
 }
 
 
-func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegister, gsr grpc.GatewayServiceRegister) error {
+func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegister, gsr grpc.GatewayServiceRegister, gatewayhealthCheckEndpoint string) error {
 	grpcSettings := ms.settings.Grpc()
 	grpcServer := grpc.New(grpcSettings.Address, sr)
-	gatewayServer, err := grpc.NewHttpGateway(grpcSettings.GatewayAddress, grpcSettings.Address, gsr)
+	gatewayServer, err := grpc.NewHttpGateway(grpcSettings.GatewayAddress, grpcSettings.Address, gsr, gatewayhealthCheckEndpoint)
 	if err != nil {
 		return err
 	}
