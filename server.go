@@ -66,16 +66,17 @@ func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegister, gsr grpc.Gat
 	}
 	ms.grpcServer = grpcServer
 	ms.httpGatewayServer = gatewayServer
+	ms.statusServer.RegisterHealthCheck("grpc_gateway", ms.httpGatewayServer)
 	return nil
 }
 
-func (ms *MicroService) WithDatabase(healthCheck func (connection *pop.Connection)error) (error) {
+func (ms *MicroService) WithDatabase(healthCheckQuery string) (error) {
 	dbs := ms.settings.Database()
 	connectionDetails := &pop.ConnectionDetails{ Dialect: dbs.Dialect, Database: dbs.Database,
 		Host: dbs.Host, Port: strconv.Itoa(dbs.Port), User: dbs.User, Password: dbs.Password,
 		Pool: dbs.Pool, IdlePool: 0}
 
-	db, err := database.New(connectionDetails, healthCheck)
+	db, err := database.New(connectionDetails, healthCheckQuery)
 	if err != nil {
 		return err
 	}

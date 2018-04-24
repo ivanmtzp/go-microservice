@@ -5,12 +5,10 @@ import (
 	"fmt"
 )
 
-type HealthCheck func (connection *pop.Connection) error
-
 type Database struct
 {
 	connection *pop.Connection
-	healthCheck HealthCheck
+	healthCheckQuery string
 }
 
 
@@ -30,15 +28,16 @@ func (d *Database) Close() error {
 }
 
 func (d *Database) HealthCheck() error {
-	return d.healthCheck(d.connection)
+	var response []interface{}
+	return d.connection.RawQuery(d.healthCheckQuery).All(&response);
 }
 
-func New(cd *pop.ConnectionDetails, healthCheck HealthCheck) (*Database, error) {
+func New(cd *pop.ConnectionDetails, healthCheckQuery string) (*Database, error) {
 	connection, err := pop.NewConnection(cd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the database connection %s", err)
 	}
-	return &Database{connection: connection, healthCheck: healthCheck}, nil
+	return &Database{connection: connection, healthCheckQuery: healthCheckQuery}, nil
 }
 
 

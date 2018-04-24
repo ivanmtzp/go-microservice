@@ -77,6 +77,22 @@ func (s* HttpGatewayServer) GrpcEndpointAddress() string {
 	return s.grpcEndpointAddress
 }
 
+func (s *HttpGatewayServer) HealthCheck() error {
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/a", s.address), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("response status: %s", resp.Status)
+	}
+	return nil
+}
 
 func (s *HttpGatewayServer) Run() error {
 	defer s.cancel()
