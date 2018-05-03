@@ -26,19 +26,9 @@ type MicroService struct {
 	database *database.Database
 }
 
-func (ms *MicroService) Database() *database.Database {
-	return ms.database
-}
-
-func (ms *MicroService) GrpcClient(name string) *grpc.Client {
-	if client, ok := ms.grpcClient[name]; ok {
-		return client
-	}
-	return nil
-}
 
 func New(name string, sr settings.Reader) *MicroService {
-	return &MicroService{name: name, settings: sr, statusServer: monitoring.NewStatusServer()}
+	return &MicroService{name: name, settings: sr, statusServer: monitoring.NewStatusServer(), grpcClient: make(map[string]*grpc.Client)}
 }
 
 func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error) {
@@ -65,36 +55,34 @@ func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error
 }
 
 
-func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegister, gsr grpc.GatewayServiceRegister, gatewayhealthCheckEndpoint string) error {
+func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServerServiceRegistrationFunc, gsr grpc.GatewayServerServiceRegistrationFunc, gatewayhealthCheckEndpoint string) (*grpc.Server, *grpc.HttpGatewayServer, error) {
 	grpcSettings := ms.settings.Grpc()
 	grpcServer := grpc.NewServer(grpcSettings.Address, sr)
 	gatewayServer, err := grpc.NewHttpGatewayServer(grpcSettings.GatewayAddress, grpcSettings.Address, gsr, gatewayhealthCheckEndpoint)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	ms.grpcServer = grpcServer
 	ms.httpGatewayServer = gatewayServer
 	ms.statusServer.RegisterHealthCheck("grpc_gateway", ms.httpGatewayServer)
-	return nil
+	return grpcServer, gatewayServer, nil
 }
 
-func (ms *MicroService) WithGrpcClient() error {
+func (ms *MicroService) WithGrpcClient(name string, serviceCreator grpc.CreateClientServiceFunc) (*grpc.Client, error) {
 	settings := ms.settings.GrpcClient()
-	if len(settings.Endpoints) > 0 {
-		clients := make(map[string]*grpc.Client, len(settings.Endpoints))
-		for k, address := range settings.Endpoints {
-			client, err := grpc.NewClient(address)
-			if err != nil {
-				return err
-			}
-			clients[k] = client
-		}
-		ms.grpcClient = clients
+	address, ok := settings.Endpoints[name]
+	if !ok {
+		return nil, fmt.Errorf("grpc client address not found in settings: %s", name)
 	}
-	return nil
+	client, err := grpc.NewClient(address, serviceCreator)
+	if err != nil {
+		return nil, err
+	}
+	ms.grpcClient[name] = client
+	return client, nil
 }
 
-func (ms *MicroService) WithDatabase(healthCheckQuery string) (error) {
+func (ms *MicroService) WithDatabase(healthCheckQuery string) (*database.Database, error) {
 	dbs := ms.settings.Database()
 	connectionDetails := &pop.ConnectionDetails{ Dialect: dbs.Dialect, Database: dbs.Database,
 		Host: dbs.Host, Port: strconv.Itoa(dbs.Port), User: dbs.User, Password: dbs.Password,
@@ -102,11 +90,11 @@ func (ms *MicroService) WithDatabase(healthCheckQuery string) (error) {
 
 	db, err := database.New(connectionDetails, healthCheckQuery)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ms.database = db
 	ms.statusServer.RegisterHealthCheck("database", ms.database)
-	return nil
+	return ms.database, nil
 }
 
 func (ms *MicroService) WithMonitoring() {
@@ -142,11 +130,10 @@ func (ms *MicroService) Run() {
 		}
 	}
 
-	if ms.grpcClient != nil {
-		for _, client := range ms.grpcClient {
-			defer client.Close()
-		}
+	for _, client := range ms.grpcClient {
+		defer client.Close()
 	}
+
 
 	if ms.statusServer.Enabled() {
 		// fire the status server

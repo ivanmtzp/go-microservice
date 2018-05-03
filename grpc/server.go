@@ -10,13 +10,9 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 )
 
-type ServiceRegister interface {
-	Register(s *grpc.Server)
-}
+type ServerServiceRegistrationFunc func (s *grpc.Server)
+type GatewayServerServiceRegistrationFunc func (ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error
 
-type GatewayServiceRegister interface {
-	RegisterGateway(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) error
-}
 
 type Server struct {
 	grpcServer *grpc.Server
@@ -35,19 +31,19 @@ type HttpGatewayServer struct {
 }
 
 
-func NewServer(address string, sr ServiceRegister) *Server {
+func NewServer(address string, sr ServerServiceRegistrationFunc) *Server {
 	grpcServer := grpc.NewServer()
-	sr.Register(grpcServer)
+	sr(grpcServer)
 	return &Server{grpcServer: grpcServer, address: address}
 }
 
-func NewHttpGatewayServer(address, grpcEndpointAddress string, gsr GatewayServiceRegister, healthCheckEndpoint string) (*HttpGatewayServer, error) {
+func NewHttpGatewayServer(address, grpcEndpointAddress string, gsr GatewayServerServiceRegistrationFunc, healthCheckEndpoint string) (*HttpGatewayServer, error) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	mux := runtime.NewServeMux()
 	opts := []grpc.DialOption{grpc.WithInsecure()}
 
-	if err := gsr.RegisterGateway(ctx, mux, grpcEndpointAddress, opts); err != nil {
+	if err := gsr(ctx, mux, grpcEndpointAddress, opts); err != nil {
 		return nil, fmt.Errorf("failed to register http grpc gateway server, %s", err)
 	}
 

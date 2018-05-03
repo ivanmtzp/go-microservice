@@ -72,7 +72,7 @@ func (c *ConfigSettings) Grpc() *Grpc {
 
 func (c* ConfigSettings) GrpcClient() *GrpcClient {
 	endpoints := make(map[string]string)
-	clients := c.config.GetStringMap("grpc", "client")
+	clients := c.config.GetStringMap("grpc", "clients")
 	for k, v := range clients {
 		vMap := v.(map[string]interface{})
 		host := vMap["host"].(string)
