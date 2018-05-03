@@ -8,6 +8,7 @@ import (
 
 type Reader interface {
 	Grpc() *Grpc
+	GrpcClient() *GrpcClient
 	Log() *Log
 	Database() *Database
 	Monitoring() *Monitoring
@@ -16,6 +17,10 @@ type Reader interface {
 type Grpc struct {
 	Address string
 	GatewayAddress string
+}
+
+type GrpcClient struct {
+	Endpoints map[string]string
 }
 
 type Log struct {
@@ -57,12 +62,24 @@ func NewConfigSettings(c *config.Config) *ConfigSettings {
 
 func (c *ConfigSettings) Grpc() *Grpc {
 	host := c.config.GetString("host")
-	grpcPort := c.config.GetInt("grpc", "port")
-	gatewayPort := c.config.GetInt("grpc", "gateway_port")
+	grpcPort := c.config.GetInt("grpc", "server", "port")
+	gatewayPort := c.config.GetInt("grpc", "server", "gateway_port")
 	address := fmt.Sprintf("%s:%d", host, grpcPort)
 	gatewayAddress := fmt.Sprintf("%s:%d", host, gatewayPort)
 
 	return &Grpc{Address: address, GatewayAddress: gatewayAddress}
+}
+
+func (c* ConfigSettings) GrpcClient() *GrpcClient {
+	endpoints := make(map[string]string)
+	clients := c.config.GetStringMap("grpc", "client")
+	for k, v := range clients {
+		vMap := v.(map[string]interface{})
+		host := vMap["host"].(string)
+		port := vMap["port"].(int)
+		endpoints[k] = fmt.Sprintf("%s:%d", host, port)
+	}
+	return &GrpcClient{Endpoints: endpoints}
 }
 
 func (c *ConfigSettings) Log() *Log{

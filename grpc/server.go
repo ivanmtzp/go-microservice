@@ -35,13 +35,13 @@ type HttpGatewayServer struct {
 }
 
 
-func New(address string, sr ServiceRegister) *Server {
+func NewServer(address string, sr ServiceRegister) *Server {
 	grpcServer := grpc.NewServer()
 	sr.Register(grpcServer)
 	return &Server{grpcServer: grpcServer, address: address}
 }
 
-func NewHttpGateway(address, grpcEndpointAddress string, gsr GatewayServiceRegister, healthCheckEndpoint string) (*HttpGatewayServer, error) {
+func NewHttpGatewayServer(address, grpcEndpointAddress string, gsr GatewayServiceRegister, healthCheckEndpoint string) (*HttpGatewayServer, error) {
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 	mux := runtime.NewServeMux()

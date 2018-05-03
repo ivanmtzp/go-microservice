@@ -21,12 +21,20 @@ type MicroService struct {
 	settings settings.Reader
 	statusServer *monitoring.StatusServer
 	grpcServer *grpc.Server
+	grpcClient map[string]*grpc.Client
 	httpGatewayServer *grpc.HttpGatewayServer
 	database *database.Database
 }
 
 func (ms *MicroService) Database() *database.Database {
 	return ms.database
+}
+
+func (ms *MicroService) GrpcClient(name string) *grpc.Client {
+	if client, ok := ms.grpcClient[name]; ok {
+		return client
+	}
+	return nil
 }
 
 func New(name string, sr settings.Reader) *MicroService {
@@ -59,14 +67,30 @@ func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error
 
 func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServiceRegister, gsr grpc.GatewayServiceRegister, gatewayhealthCheckEndpoint string) error {
 	grpcSettings := ms.settings.Grpc()
-	grpcServer := grpc.New(grpcSettings.Address, sr)
-	gatewayServer, err := grpc.NewHttpGateway(grpcSettings.GatewayAddress, grpcSettings.Address, gsr, gatewayhealthCheckEndpoint)
+	grpcServer := grpc.NewServer(grpcSettings.Address, sr)
+	gatewayServer, err := grpc.NewHttpGatewayServer(grpcSettings.GatewayAddress, grpcSettings.Address, gsr, gatewayhealthCheckEndpoint)
 	if err != nil {
 		return err
 	}
 	ms.grpcServer = grpcServer
 	ms.httpGatewayServer = gatewayServer
 	ms.statusServer.RegisterHealthCheck("grpc_gateway", ms.httpGatewayServer)
+	return nil
+}
+
+func (ms *MicroService) WithGrpcClient() error {
+	settings := ms.settings.GrpcClient()
+	if len(settings.Endpoints) > 0 {
+		clients := make(map[string]*grpc.Client, len(settings.Endpoints))
+		for k, address := range settings.Endpoints {
+			client, err := grpc.NewClient(address)
+			if err != nil {
+				return err
+			}
+			clients[k] = client
+		}
+		ms.grpcClient = clients
+	}
 	return nil
 }
 
@@ -115,6 +139,12 @@ func (ms *MicroService) Run() {
 				err := ms.httpGatewayServer.Run()
 				log.FailOnError(err, fmt.Sprint("failed to start Http gateway server ", ms.httpGatewayServer.Address()))
 			}()
+		}
+	}
+
+	if ms.grpcClient != nil {
+		for _, client := range ms.grpcClient {
+			defer client.Close()
 		}
 	}
 

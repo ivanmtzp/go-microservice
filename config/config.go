@@ -54,3 +54,7 @@ func (c *Config) GetInt(keys ...string) int {
 func (c *Config) GetBool(keys ...string) bool {
 	return c.viper.GetBool(strings.Join(keys, "."))
 }
+
+func (c *Config) GetStringMap(keys ...string)  map[string]interface{} {
+	return c.viper.GetStringMap(strings.Join(keys, "."))
+}
