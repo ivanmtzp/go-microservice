@@ -13,7 +13,7 @@ type RabbitMqBroker struct
 	consumerChannels map[string]<-chan amqp.Delivery
 }
 
-func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*Broker, error) {
+func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*RabbitMqBroker, error) {
 	connection, err := amqp.Dial(address)
 	if err != nil {
 		return nil, err
@@ -27,6 +27,10 @@ func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*Broker
 		return nil, err
 	}
 	return &RabbitMqBroker{address: address, connection: connection, channel:channel, queues: make(map[string]*amqp.Queue)}, nil
+}
+
+func (b *RabbitMqBroker) Open() {
+
 }
 
 func (b *RabbitMqBroker) WithQueue(name string, durable, autoDelete, exclusive, noWait bool) (*amqp.Queue, error) {
@@ -47,6 +51,14 @@ func (b *RabbitMqBroker) WithConsumerChannel(queueName, consumer string, autoAck
 	return consumerChannel, nil
 }
 
+func (b *RabbitMqBroker) Close() {
+	if b.channel != nil {
+		b.channel.Close()
+	}
+	if b.connection != nil {
+		b.connection.Close()
+	}
+}
 
 
 

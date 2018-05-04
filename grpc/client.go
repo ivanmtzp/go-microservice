@@ -29,7 +29,9 @@ func (c* Client) Service() interface{} {
 }
 
 func (c *Client) Close() {
-	c.clientConn.Close()
+	if c.clientConn != nil {
+		c.clientConn.Close()
+	}
 }
 
 

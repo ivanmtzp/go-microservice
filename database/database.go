@@ -24,7 +24,10 @@ func (d *Database) Open() error {
 }
 
 func (d *Database) Close() error {
-	return d.connection.Close()
+	if d.connection != nil {
+		return d.connection.Close()
+	}
+	return nil
 }
 
 func (d *Database) HealthCheck() error {

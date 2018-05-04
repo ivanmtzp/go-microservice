@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 	"github.com/gobuffalo/pop"
+	"github.com/ivanmtzp/go-microservice/broker"
 	"github.com/ivanmtzp/go-microservice/grpc"
 	"github.com/ivanmtzp/go-microservice/log"
 	"github.com/ivanmtzp/go-microservice/config"
@@ -21,14 +22,15 @@ type MicroService struct {
 	settings settings.Reader
 	statusServer *monitoring.StatusServer
 	grpcServer *grpc.Server
-	grpcClient map[string]*grpc.Client
+	grpcClients map[string]*grpc.Client
 	httpGatewayServer *grpc.HttpGatewayServer
 	database *database.Database
+	rabbitMqBroker *broker.RabbitMqBroker
 }
 
 
 func New(name string, sr settings.Reader) *MicroService {
-	return &MicroService{name: name, settings: sr, statusServer: monitoring.NewStatusServer(), grpcClient: make(map[string]*grpc.Client)}
+	return &MicroService{name: name, settings: sr, statusServer: monitoring.NewStatusServer(), grpcClients: make(map[string]*grpc.Client)}
 }
 
 func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error) {
@@ -55,8 +57,8 @@ func NewWithSettingsFile(name, envPrefix, filename string) (*MicroService, error
 }
 
 
-func (ms *MicroService) WithGrpcAndGateway(sr grpc.ServerServiceRegistrationFunc, gsr grpc.GatewayServerServiceRegistrationFunc, gatewayhealthCheckEndpoint string) (*grpc.Server, *grpc.HttpGatewayServer, error) {
-	grpcSettings := ms.settings.Grpc()
+func (ms *MicroService) WithGrpcAndGatewayServer(sr grpc.ServerServiceRegistrationFunc, gsr grpc.GatewayServerServiceRegistrationFunc, gatewayhealthCheckEndpoint string) (*grpc.Server, *grpc.HttpGatewayServer, error) {
+	grpcSettings := ms.settings.GrpcServer()
 	grpcServer := grpc.NewServer(grpcSettings.Address, sr)
 	gatewayServer, err := grpc.NewHttpGatewayServer(grpcSettings.GatewayAddress, grpcSettings.Address, gsr, gatewayhealthCheckEndpoint)
 	if err != nil {
@@ -78,8 +80,24 @@ func (ms *MicroService) WithGrpcClient(name string, serviceCreator grpc.CreateCl
 	if err != nil {
 		return nil, err
 	}
-	ms.grpcClient[name] = client
+	ms.grpcClients[name] = client
 	return client, nil
+}
+
+func (ms *MicroService) WithGrpcClients(clients map[string]grpc.CreateClientServiceFunc) (map[string]*grpc.Client, error) {
+	endpoints := ms.settings.GrpcClient().Endpoints
+	for name, sc := range clients {
+		address, ok := endpoints[name]
+		if !ok {
+			return nil, fmt.Errorf("grpc client address not found in settings: %s", name)
+		}
+		client, err := grpc.NewClient(address, sc)
+		if err != nil {
+			return nil, err
+		}
+		ms.grpcClients[name] = client
+	}
+	return ms.grpcClients, nil
 }
 
 func (ms *MicroService) WithDatabase(healthCheckQuery string) (*database.Database, error) {
@@ -102,10 +120,20 @@ func (ms *MicroService) WithMonitoring() {
 	ms.statusServer.Enable(monSettings.Address)
 }
 
+func (ms *MicroService) WithRabbitMqBroker() (*broker.RabbitMqBroker, error) {
+	settings := ms.settings.RabbitMqBroker()
+	log.Println(settings)
+	rabbitmq, err := broker.NewRabbitMqBroker(settings.Address, settings.PrefetchCount, settings.PrefetchSize)
+	if err != nil {
+		return nil, err
+	}
+	return rabbitmq, nil
+}
+
+
 func (ms *MicroService) Run() {
 
 	if ms.database != nil {
-		// connect to database
 		log.Info("connecting to database ", ms.database.Connection().URL())
 		if err := ms.database.Open() ; err != nil {
 			log.FailOnError(err, "couldn't open connection to database ")
@@ -114,14 +142,12 @@ func (ms *MicroService) Run() {
 	}
 
 	if ms.grpcServer != nil {
-		// fire the gRPC server in a goroutine
 		go func() {
 			log.Infof("starting HTTP/2 gRPC server on %s", ms.grpcServer.Address())
 			err:= ms.grpcServer.Run()
 			log.FailOnError(err, fmt.Sprint("failed to start gRPC server " , ms.grpcServer.Address()))
 		}()
 		if ms.httpGatewayServer != nil {
-			// fire the http grpc gateway in a goroutine
 			go func() {
 				log.Infof("starting HTTP/1.1 gateway server on %s for grpc server endpoint %s", ms.httpGatewayServer.Address(), ms.httpGatewayServer.GrpcEndpointAddress() )
 				err := ms.httpGatewayServer.Run()
@@ -130,18 +156,16 @@ func (ms *MicroService) Run() {
 		}
 	}
 
-	for _, client := range ms.grpcClient {
+	for _, client := range ms.grpcClients {
 		defer client.Close()
 	}
 
 
 	if ms.statusServer.Enabled() {
-		// fire the status server
 		go func() {
 			log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address)
 			ms.statusServer.Run()
 		}()
-		//	fire the metrics pusher
 		go func() {
 			mps := &ms.settings.Monitoring().InfluxMetricsPusher
 			if mps.Enabled {
@@ -155,7 +179,6 @@ func (ms *MicroService) Run() {
 		log.Warning("monitoring server is disabled")
 	}
 
-	// infinite loop
 	select {}
 
 }
