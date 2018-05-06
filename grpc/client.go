@@ -4,20 +4,20 @@ import (
 	"google.golang.org/grpc"
 )
 
-type CreateClientServiceFunc func(clientConn *grpc.ClientConn) interface{}
+type CreateClientServiceFunc func(connection *grpc.ClientConn) interface{}
 
 type Client struct {
-	clientConn *grpc.ClientConn
+	connection *grpc.ClientConn
 	address string
 	service interface{}
 }
 
 func NewClient(address string, serviceCreator CreateClientServiceFunc) (*Client, error) {
-	clientConn, err := grpc.Dial(address, grpc.WithInsecure())
+	connection, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
-	return &Client{clientConn: clientConn, address: address, service: serviceCreator(clientConn)}, nil
+	return &Client{connection: connection, address: address, service: serviceCreator(connection)}, nil
 }
 
 func (c* Client) Address() string {
@@ -29,8 +29,8 @@ func (c* Client) Service() interface{} {
 }
 
 func (c *Client) Close() {
-	if c.clientConn != nil {
-		c.clientConn.Close()
+	if c.connection != nil {
+		c.connection.Close()
 	}
 }
 

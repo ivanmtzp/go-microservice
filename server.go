@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"strconv"
-	"time"
-	"github.com/gobuffalo/pop"
 	"github.com/ivanmtzp/go-microservice/broker"
 	"github.com/ivanmtzp/go-microservice/grpc"
 	"github.com/ivanmtzp/go-microservice/log"
@@ -16,13 +13,14 @@ import (
 	"github.com/ivanmtzp/go-microservice/monitoring"
 )
 
+type GrpcClientsMap map[string]*grpc.Client
 
 type MicroService struct {
 	name string
 	settings settings.Reader
 	statusServer *monitoring.StatusServer
 	grpcServer *grpc.Server
-	grpcClients map[string]*grpc.Client
+	grpcClients GrpcClientsMap
 	httpGatewayServer *grpc.HttpGatewayServer
 	database *database.Database
 	rabbitMqBroker *broker.RabbitMqBroker
@@ -84,15 +82,22 @@ func (ms *MicroService) WithGrpcClient(name string, serviceCreator grpc.CreateCl
 	return client, nil
 }
 
-func (ms *MicroService) WithGrpcClients(clients map[string]grpc.CreateClientServiceFunc) (map[string]*grpc.Client, error) {
+
+func (ms *MicroService) WithGrpcClients(clients map[string]grpc.CreateClientServiceFunc) (GrpcClientsMap, error) {
 	endpoints := ms.settings.GrpcClient().Endpoints
 	for name, sc := range clients {
 		address, ok := endpoints[name]
 		if !ok {
+			for _, client := range ms.grpcClients {
+				client.Close()
+			}
 			return nil, fmt.Errorf("grpc client address not found in settings: %s", name)
 		}
 		client, err := grpc.NewClient(address, sc)
 		if err != nil {
+			for _, client := range ms.grpcClients {
+				client.Close()
+			}
 			return nil, err
 		}
 		ms.grpcClients[name] = client
@@ -100,13 +105,16 @@ func (ms *MicroService) WithGrpcClients(clients map[string]grpc.CreateClientServ
 	return ms.grpcClients, nil
 }
 
+func (m GrpcClientsMap) Close(){
+	for _, client := range m {
+		client.Close()
+	}
+}
+
 func (ms *MicroService) WithDatabase(healthCheckQuery string) (*database.Database, error) {
 	dbs := ms.settings.Database()
-	connectionDetails := &pop.ConnectionDetails{ Dialect: dbs.Dialect, Database: dbs.Database,
-		Host: dbs.Host, Port: strconv.Itoa(dbs.Port), User: dbs.User, Password: dbs.Password,
-		Pool: dbs.Pool, IdlePool: 0}
 
-	db, err := database.New(connectionDetails, healthCheckQuery)
+	db, err := database.New(dbs, healthCheckQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +130,6 @@ func (ms *MicroService) WithMonitoring() {
 
 func (ms *MicroService) WithRabbitMqBroker() (*broker.RabbitMqBroker, error) {
 	settings := ms.settings.RabbitMqBroker()
-	log.Println(settings)
 	rabbitmq, err := broker.NewRabbitMqBroker(settings.Address, settings.PrefetchCount, settings.PrefetchSize)
 	if err != nil {
 		return nil, err
@@ -130,16 +137,7 @@ func (ms *MicroService) WithRabbitMqBroker() (*broker.RabbitMqBroker, error) {
 	return rabbitmq, nil
 }
 
-
 func (ms *MicroService) Run() {
-
-	if ms.database != nil {
-		log.Info("connecting to database ", ms.database.Connection().URL())
-		if err := ms.database.Open() ; err != nil {
-			log.FailOnError(err, "couldn't open connection to database ")
-		}
-		defer ms.database.Close()
-	}
 
 	if ms.grpcServer != nil {
 		go func() {
@@ -156,23 +154,21 @@ func (ms *MicroService) Run() {
 		}
 	}
 
-	for _, client := range ms.grpcClients {
-		defer client.Close()
-	}
-
-
 	if ms.statusServer.Enabled() {
 		go func() {
 			log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address)
 			ms.statusServer.Run()
 		}()
 		go func() {
-			mps := &ms.settings.Monitoring().InfluxMetricsPusher
-			if mps.Enabled {
-				hostUrl := fmt.Sprintf("http://%s:%d", mps.Host, mps.Port)
-				log.Infof("starting InfluxDb Metrics pushing to: %s, database: %s, user: %s,  with interval: %d", hostUrl,
-					mps.Database, mps.User, mps.Interval)
-				monitoring.StartInfluxDbPusher(time.Second*time.Duration(mps.Interval), hostUrl, mps.Database, mps.User, mps.Password)
+			mps := ms.settings.Monitoring().InfluxDbMetricsPusher
+			if mps != nil {
+				log.Infof("starting InfluxDb Metrics pushing to host: %s, port: %d, database: %s, user: %s,  with interval: %d",
+					mps.InfluxDbProperties.Host,
+					mps.InfluxDbProperties.Port,
+					mps.InfluxDbProperties.Database,
+					mps.InfluxDbProperties.User,
+					mps.Interval)
+				monitoring.RunInfluxDbMetricsPusher(mps.InfluxDbProperties, mps.Interval)
 			}
 		}()
 	} else {

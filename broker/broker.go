@@ -4,6 +4,23 @@ import (
 	"github.com/streadway/amqp"
 )
 
+type RabbitMqQueueProperties struct {
+	Name string
+	Durable bool
+	AutoDelete bool
+	Exclusive bool
+	NoWait bool
+}
+
+type RabbitMqConsumerProperties struct {
+	Name string
+	QueueName string
+	AutoAck bool
+	Exclusive bool
+	NoLocal bool
+	NoWait bool
+}
+
 type RabbitMqBroker struct
 {
 	address string
@@ -29,25 +46,21 @@ func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*Rabbit
 	return &RabbitMqBroker{address: address, connection: connection, channel:channel, queues: make(map[string]*amqp.Queue)}, nil
 }
 
-func (b *RabbitMqBroker) Open() {
-
-}
-
-func (b *RabbitMqBroker) WithQueue(name string, durable, autoDelete, exclusive, noWait bool) (*amqp.Queue, error) {
-	queue, err := b.channel.QueueDeclare( name, durable, autoDelete, exclusive, noWait, nil)
+func (b *RabbitMqBroker) WithQueue(p *RabbitMqQueueProperties) (*amqp.Queue, error) {
+	queue, err := b.channel.QueueDeclare( p.Name, p.Durable, p.AutoDelete, p.Exclusive, p.NoWait, nil)
 	if err != nil {
 		return nil, err
 	}
-	b.queues[name] = &queue
+	b.queues[p.Name] = &queue
 	return &queue, nil
 }
 
-func (b *RabbitMqBroker) WithConsumerChannel(queueName, consumer string, autoAck, exclusive, noLocal, noWait bool) (<-chan amqp.Delivery, error) {
-	consumerChannel, err := b.channel.Consume(queueName, consumer, autoAck, exclusive, noLocal, noWait, nil)
+func (b *RabbitMqBroker) WithConsumerChannel(p *RabbitMqConsumerProperties) (<-chan amqp.Delivery, error) {
+	consumerChannel, err := b.channel.Consume(p.QueueName, p.Name, p.AutoAck, p.Exclusive, p.NoLocal, p.NoWait, nil)
 	if err != nil {
 		return nil, err
 	}
-	b.consumerChannels[queueName] = consumerChannel
+	b.consumerChannels[p.QueueName] = consumerChannel
 	return consumerChannel, nil
 }
 

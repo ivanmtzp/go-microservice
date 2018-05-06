@@ -2,22 +2,12 @@ package monitoring
 
 import (
 	"time"
-	"github.com/rcrowley/go-metrics"
-	"github.com/vrischmann/go-metrics-influxdb"
 	"io"
 	"net/http"
 	"bytes"
-)
 
-func StartInfluxDbPusher(interval time.Duration, hostUrl, database, user, password string) {
-	influxdb.InfluxDB(metricsRegistry,
-		interval,
-		hostUrl,
-		database,
-		user,
-		password,
-	)
-}
+	"github.com/rcrowley/go-metrics"
+)
 
 func RegisterTimer(names ...string) {
 	for _, name := range names {
