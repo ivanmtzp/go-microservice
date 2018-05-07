@@ -5,8 +5,8 @@ import (
 
 	"github.com/ivanmtzp/go-microservice/config"
 	"github.com/ivanmtzp/go-microservice/database"
-	"github.com/ivanmtzp/go-microservice/monitoring"
 	"github.com/ivanmtzp/go-microservice/broker"
+	"time"
 )
 
 type Reader interface {
@@ -32,9 +32,16 @@ type GrpcClient struct {
 	Endpoints map[string]string
 }
 
+type InfluxDbProperties struct {
+	Address string
+	Database string
+	User string
+	Password string
+}
+
 type InfluxDbMetricsPusher struct {
-	InfluxDbProperties *monitoring.InfluxDbProperties
-	Interval int
+	InfluxDbProperties *InfluxDbProperties
+	Interval time.Duration
 }
 
 type Monitoring struct {
@@ -99,10 +106,9 @@ func (c *ConfigSettings) Monitoring() *Monitoring {
 	m := c.config.GetStringMap("monitoring", "metrics", "influxdb_pusher")
 	if m != nil {
 		imp = &InfluxDbMetricsPusher{
-			Interval: m["interval"].(int),
-			InfluxDbProperties: &monitoring.InfluxDbProperties{
-				Host:     m.GetString("host"),
-				Port:     m.GetInt("port"),
+			Interval: time.Second * time.Duration(m["interval"].(int)),
+			InfluxDbProperties: &InfluxDbProperties{
+				Address: fmt.Sprintf("http://%s:%d",  m.GetString("host"), m.GetInt("port")),
 				Database: m.GetString("database"),
 				User:     m.GetStringWithDefault("user", ""),
 				Password: m.GetStringWithDefault("password", ""),

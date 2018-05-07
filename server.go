@@ -19,6 +19,7 @@ type MicroService struct {
 	name string
 	settings settings.Reader
 	statusServer *monitoring.StatusServer
+	metricsPusher *monitoring.InfluxDbPusher
 	grpcServer *grpc.Server
 	grpcClients GrpcClientsMap
 	httpGatewayServer *grpc.HttpGatewayServer
@@ -123,23 +124,47 @@ func (ms *MicroService) WithDatabase(healthCheckQuery string) (*database.Databas
 	return ms.database, nil
 }
 
-func (ms *MicroService) WithMonitoring() {
+func (ms *MicroService) WithMonitoring() error {
 	monSettings := ms.settings.Monitoring()
 	ms.statusServer.Enable(monSettings.Address)
+	mps := monSettings.InfluxDbMetricsPusher
+	metricsPusher, err := monitoring.NewInfluxDbPusher(
+		mps.InfluxDbProperties.Address,
+		mps.InfluxDbProperties.User,
+		mps.InfluxDbProperties.Password,
+		mps.InfluxDbProperties.Database,
+		make(map[string]string),
+		mps.Interval)
+	if err != nil {
+		return err
+	}
+	ms.metricsPusher = metricsPusher
+	return nil
 }
 
-func (ms *MicroService) WithRabbitMqBroker() (*broker.RabbitMqBroker, error) {
+func (ms *MicroService) WithRabbitMqBroker(handlers map[string]broker.ConsumerHandlerFunc) (*broker.RabbitMqBroker, error) {
 	settings := ms.settings.RabbitMqBroker()
 	rabbitmq, err := broker.NewRabbitMqBroker(settings.Address, settings.PrefetchCount, settings.PrefetchSize)
 	if err != nil {
 		return nil, err
 	}
 	for k, v := range settings.Queues {
-		rabbitmq.WithQueue(k, v)
+		_, err := rabbitmq.WithQueue(k, v)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for k, v := range settings.Consumers {
-		rabbitmq.WithConsumerChannel(k, v)
+		handler, ok := handlers[k]
+		if !ok {
+			return nil, fmt.Errorf("rabbitmq consumer id not found in settings, %s", k)
+		}
+		_, err := rabbitmq.WithConsumerChannel(k, handler, v)
+		if err != nil {
+			return nil, err
+		}
 	}
+	ms.rabbitMqBroker = rabbitmq
 	return rabbitmq, nil
 }
 
@@ -165,24 +190,19 @@ func (ms *MicroService) Run() {
 			log.Infof("starting HTTP/1.1 monitoring server on %s", ms.settings.Monitoring().Address)
 			ms.statusServer.Run()
 		}()
-		go func() {
-			mps := ms.settings.Monitoring().InfluxDbMetricsPusher
-			if mps != nil {
-				log.Infof("starting InfluxDb Metrics pushing to host: %s, port: %d, database: %s, user: %s,  with interval: %d",
-					mps.InfluxDbProperties.Host,
-					mps.InfluxDbProperties.Port,
-					mps.InfluxDbProperties.Database,
-					mps.InfluxDbProperties.User,
-					mps.Interval)
-				monitoring.RunInfluxDbMetricsPusher(mps.InfluxDbProperties, mps.Interval)
-			}
-		}()
+		if ms.metricsPusher != nil {
+			go func() {
+				log.Infof("starting InfluxDb Metrics pushing to %s, database: %s", ms.metricsPusher.Address(), ms.metricsPusher.Database())
+				ms.metricsPusher.Run()
+			}()
+		}
 	} else {
 		log.Warning("monitoring server is disabled")
 	}
 
 	if ms.rabbitMqBroker != nil {
 		go func() {
+			log.Infof("starting RabbitMq on %s ", ms.settings.RabbitMqBroker().Address)
 			ms.rabbitMqBroker.Run()
 		}()
 	}

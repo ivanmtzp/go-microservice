@@ -22,7 +22,7 @@ type RabbitMqConsumerProperties struct {
 	NoWait bool
 }
 
-type ConsumerHandlerFunc func(delivery *amqp.Delivery) error
+type ConsumerHandlerFunc func(channel *amqp.Channel, delivery *amqp.Delivery)
 
 type ConsumerChannel struct {
 	channel <-chan amqp.Delivery
@@ -50,7 +50,12 @@ func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*Rabbit
 	if err != nil {
 		return nil, err
 	}
-	return &RabbitMqBroker{address: address, connection: connection, channel:channel, queues: make(map[string]*amqp.Queue)}, nil
+	return &RabbitMqBroker{
+		address: address,
+		connection: connection,
+		channel:channel,
+		queues: make(map[string]*amqp.Queue),
+		consumers: make(map[string]*ConsumerChannel)}, nil
 }
 
 func (b *RabbitMqBroker) WithQueue(id string, p *RabbitMqQueueProperties) (*amqp.Queue, error) {
@@ -90,7 +95,7 @@ func (b *RabbitMqBroker) Run() {
 		go func() {
 			defer wg.Done()
 			for d := range v.channel {
-				v.handler(&d)
+				v.handler(b.channel, &d)
 			}
 		}()
 	}
