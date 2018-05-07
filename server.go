@@ -134,6 +134,12 @@ func (ms *MicroService) WithRabbitMqBroker() (*broker.RabbitMqBroker, error) {
 	if err != nil {
 		return nil, err
 	}
+	for k, v := range settings.Queues {
+		rabbitmq.WithQueue(k, v)
+	}
+	for k, v := range settings.Consumers {
+		rabbitmq.WithConsumerChannel(k, v)
+	}
 	return rabbitmq, nil
 }
 
@@ -173,6 +179,12 @@ func (ms *MicroService) Run() {
 		}()
 	} else {
 		log.Warning("monitoring server is disabled")
+	}
+
+	if ms.rabbitMqBroker != nil {
+		go func() {
+			ms.rabbitMqBroker.Run()
+		}()
 	}
 
 	select {}

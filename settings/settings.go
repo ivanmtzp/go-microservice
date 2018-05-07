@@ -65,14 +65,15 @@ func (c *ConfigSettings) Log() *Log{
 }
 
 func (c *ConfigSettings) Database() *database.Properties {
+	m := c.config.GetStringMap("database")
 	return &database.Properties{
-		Dialect: c.config.GetString("database", "dialect"),
-		Database: c.config.GetString("database", "name"),
-		Host: c.config.GetString("database", "host"),
-		Port: c.config.GetInt("database", "port"),
-		User: c.config.GetString("database", "user"),
-		Password: c.config.GetString("database", "password"),
-		Pool: c.config.GetInt("database", "pool"),
+		Dialect: m.GetString("dialect"),
+		Database: m.GetString("name"),
+		Host: m.GetString("host"),
+		Port: m.GetInt("port"),
+		User: m.GetString("user"),
+		Password: m.GetString("password"),
+		Pool: m.GetInt("pool"),
 	}
 }
 
@@ -86,9 +87,9 @@ func (c *ConfigSettings) GrpcServer() *GrpcServer {
 
 func (c* ConfigSettings) GrpcClient() *GrpcClient {
 	endpoints := make(map[string]string)
-	for k, v := range c.config.GetStringMap("grpc", "clients") {
-		vMap := v.(map[string]interface{})
-		endpoints[k] = fmt.Sprintf("%s:%d", vMap["host"].(string), vMap["port"].(int))
+	for k, _ := range c.config.GetStringMap("grpc", "clients") {
+		m := c.config.GetStringMap("grpc", "clients", k)
+		endpoints[k] = fmt.Sprintf("%s:%d", m.GetString("host"), m.GetInt("port"))
 	}
 	return &GrpcClient{Endpoints: endpoints}
 }
@@ -100,11 +101,11 @@ func (c *ConfigSettings) Monitoring() *Monitoring {
 		imp = &InfluxDbMetricsPusher{
 			Interval: m["interval"].(int),
 			InfluxDbProperties: &monitoring.InfluxDbProperties{
-				Host:     m["host"].(string),
-				Port:     m["port"].(int),
-				Database: m["database"].(string),
-				User:     m["user"].(string),
-				Password: m["password"].(string),
+				Host:     m.GetString("host"),
+				Port:     m.GetInt("port"),
+				Database: m.GetString("database"),
+				User:     m.GetStringWithDefault("user", ""),
+				Password: m.GetStringWithDefault("password", ""),
 			},
 		}
 	}
@@ -117,31 +118,27 @@ func (c *ConfigSettings) Monitoring() *Monitoring {
 func (c* ConfigSettings) RabbitMqBroker() *RabbitMqBroker {
 	queues := make(map[string]*broker.RabbitMqQueueProperties)
 	queuesConfig := c.config.GetStringMap("broker", "rabbitmq", "queues")
-	for k, v := range queuesConfig {
-		vMap := v.(map[string]interface{})
+	for k, _ := range queuesConfig {
+		m := c.config.GetStringMap("broker", "rabbitmq", "queues", k)
 		queues[k] = &broker.RabbitMqQueueProperties {
-			Name: vMap["name"].(string),
-			Durable: vMap["durable"].(bool),
-			AutoDelete: vMap["auto_delete"].(bool),
-			Exclusive: vMap["exclusive"].(bool),
-			NoWait:  vMap["no_wait"].(bool),
+			Name: m.GetString("name"),
+			Durable: m.GetBool("durable"),
+			AutoDelete: m.GetBool("auto_delete"),
+			Exclusive: m.GetBool("exclusive"),
+			NoWait: m.GetBool("no_wait"),
 		}
 	}
 	consumers :=  make(map[string]*broker.RabbitMqConsumerProperties)
 	consumersConfig := c.config.GetStringMap("broker", "rabbitmq", "consumers")
-	for k, v := range consumersConfig {
-		vMap := v.(map[string]interface{})
-		name := ""
-		if vMap["name"] != nil {
-			name = vMap["name"].(string)
-		}
+	for k, _ := range consumersConfig {
+		m := c.config.GetStringMap("broker", "rabbitmq", "consumers", k)
 		consumers[k] = &broker.RabbitMqConsumerProperties {
-			Name: name,
-			QueueName: vMap["queue_name"].(string),
-			AutoAck: vMap["auto_ack"].(bool),
-			Exclusive: vMap["exclusive"].(bool),
-			NoLocal:  vMap["no_local"].(bool),
-			NoWait:  vMap["no_wait"].(bool),
+			Name: m.GetStringWithDefault("name", ""),
+			QueueName: m.GetString("queue_name"),
+			AutoAck: m.GetBool("auto_ack"),
+			Exclusive: m.GetBool("exclusive"),
+			NoLocal: m.GetBool("no_local"),
+			NoWait: m.GetBool("no_wait"),
 		}
 	}
 	return &RabbitMqBroker{

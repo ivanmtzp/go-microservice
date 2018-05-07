@@ -2,6 +2,7 @@ package broker
 
 import (
 	"github.com/streadway/amqp"
+	"sync"
 )
 
 type RabbitMqQueueProperties struct {
@@ -21,13 +22,19 @@ type RabbitMqConsumerProperties struct {
 	NoWait bool
 }
 
-type RabbitMqBroker struct
-{
+type ConsumerHandlerFunc func(delivery *amqp.Delivery) error
+
+type ConsumerChannel struct {
+	channel <-chan amqp.Delivery
+	handler ConsumerHandlerFunc
+}
+
+type RabbitMqBroker struct {
 	address string
 	connection *amqp.Connection
 	channel *amqp.Channel
 	queues map[string]*amqp.Queue
-	consumerChannels map[string]<-chan amqp.Delivery
+	consumers map[string]*ConsumerChannel
 }
 
 func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*RabbitMqBroker, error) {
@@ -46,21 +53,24 @@ func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*Rabbit
 	return &RabbitMqBroker{address: address, connection: connection, channel:channel, queues: make(map[string]*amqp.Queue)}, nil
 }
 
-func (b *RabbitMqBroker) WithQueue(p *RabbitMqQueueProperties) (*amqp.Queue, error) {
+func (b *RabbitMqBroker) WithQueue(id string, p *RabbitMqQueueProperties) (*amqp.Queue, error) {
 	queue, err := b.channel.QueueDeclare( p.Name, p.Durable, p.AutoDelete, p.Exclusive, p.NoWait, nil)
 	if err != nil {
 		return nil, err
 	}
-	b.queues[p.Name] = &queue
+	b.queues[id] = &queue
 	return &queue, nil
 }
 
-func (b *RabbitMqBroker) WithConsumerChannel(p *RabbitMqConsumerProperties) (<-chan amqp.Delivery, error) {
+func (b *RabbitMqBroker) WithConsumerChannel(id string, handler ConsumerHandlerFunc, p *RabbitMqConsumerProperties) (<-chan amqp.Delivery, error) {
 	consumerChannel, err := b.channel.Consume(p.QueueName, p.Name, p.AutoAck, p.Exclusive, p.NoLocal, p.NoWait, nil)
 	if err != nil {
 		return nil, err
 	}
-	b.consumerChannels[p.QueueName] = consumerChannel
+	b.consumers[id] = &ConsumerChannel{
+		channel: consumerChannel,
+		handler: handler,
+	}
 	return consumerChannel, nil
 }
 
@@ -73,6 +83,19 @@ func (b *RabbitMqBroker) Close() {
 	}
 }
 
+func (b *RabbitMqBroker) Run() {
+	var wg sync.WaitGroup
+	wg.Add(len(b.consumers))
+	for _, v := range b.consumers {
+		go func() {
+			defer wg.Done()
+			for d := range v.channel {
+				v.handler(&d)
+			}
+		}()
+	}
+	wg.Wait()
+}
 
 
 
