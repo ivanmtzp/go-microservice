@@ -170,6 +170,10 @@ func (ms *MicroService) WithRabbitMqBroker(handlers map[string]broker.ConsumerHa
 
 func (ms *MicroService) Run() {
 
+	if ms.database != nil {
+		log.Infof("starting database connection on %s", ms.database.Address())
+	}
+
 	if ms.grpcServer != nil {
 		go func() {
 			log.Infof("starting HTTP/2 gRPC server on %s", ms.grpcServer.Address())

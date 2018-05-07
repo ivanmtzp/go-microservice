@@ -23,6 +23,10 @@ type Properties struct {
 	Pool int
 }
 
+func (d *Database) Address() string {
+	return fmt.Sprintf("%s:%d", d.properties.Host, d.properties.Port)
+}
+
 func (d *Database) Connection() (*pop.Connection){
 	return d.connection
 }
