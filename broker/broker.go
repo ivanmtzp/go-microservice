@@ -3,6 +3,8 @@ package broker
 import (
 	"github.com/streadway/amqp"
 	"sync"
+	"strings"
+	"fmt"
 )
 
 type RabbitMqQueueProperties struct {
@@ -37,6 +39,7 @@ type RabbitMqBroker struct {
 	consumers map[string]*ConsumerChannel
 }
 
+
 func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*RabbitMqBroker, error) {
 	connection, err := amqp.Dial(address)
 	if err != nil {
@@ -58,6 +61,19 @@ func NewRabbitMqBroker(address string, prefetchCount, prefetchSize int) (*Rabbit
 		consumers: make(map[string]*ConsumerChannel)}, nil
 }
 
+func (b *RabbitMqBroker) Address() string {
+	return b.address
+}
+
+func (b *RabbitMqBroker) Channel() *amqp.Channel {
+	return b.channel
+}
+
+func (b *RabbitMqBroker) Queue(id string) (*amqp.Queue, bool) {
+	q, ok := b.queues[id]
+	return q, ok
+}
+
 func (b *RabbitMqBroker) WithQueue(id string, p *RabbitMqQueueProperties) (*amqp.Queue, error) {
 	queue, err := b.channel.QueueDeclare( p.Name, p.Durable, p.AutoDelete, p.Exclusive, p.NoWait, nil)
 	if err != nil {
@@ -68,7 +84,16 @@ func (b *RabbitMqBroker) WithQueue(id string, p *RabbitMqQueueProperties) (*amqp
 }
 
 func (b *RabbitMqBroker) WithConsumerChannel(id string, handler ConsumerHandlerFunc, p *RabbitMqConsumerProperties) (<-chan amqp.Delivery, error) {
-	consumerChannel, err := b.channel.Consume(p.QueueName, p.Name, p.AutoAck, p.Exclusive, p.NoLocal, p.NoWait, nil)
+	queueName := p.QueueName
+	if strings.HasPrefix(queueName, "nameFromQueue(") && strings.HasSuffix(queueName, ")") {
+		queueId := strings.TrimLeft(strings.TrimRight(queueName, ")"), "nameFromQueue(")
+		q, ok := b.queues[queueId]
+		if !ok {
+			return nil, fmt.Errorf("unable to find queue name for queue id %s", queueId)
+		}
+		queueName = q.Name
+	}
+	consumerChannel, err := b.channel.Consume(queueName, p.Name, p.AutoAck, p.Exclusive, p.NoLocal, p.NoWait, nil)
 	if err != nil {
 		return nil, err
 	}

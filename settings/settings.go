@@ -139,7 +139,7 @@ func (c* ConfigSettings) RabbitMqBroker() *RabbitMqBroker {
 	for k, _ := range consumersConfig {
 		m := c.config.GetStringMap("broker", "rabbitmq", "consumers", k)
 		consumers[k] = &broker.RabbitMqConsumerProperties {
-			Name: m.GetStringWithDefault("name", ""),
+			Name: m.GetString("name"),
 			QueueName: m.GetString("queue_name"),
 			AutoAck: m.GetBool("auto_ack"),
 			Exclusive: m.GetBool("exclusive"),
