@@ -115,7 +115,7 @@ func (m GrpcClientsMap) Close(){
 func (ms *MicroService) WithDatabase(healthCheckQuery string) (*database.Database, error) {
 	dbs := ms.settings.Database()
 
-	db, err := database.New(dbs, healthCheckQuery)
+	db, err := database.NewDatabase(dbs, healthCheckQuery)
 	if err != nil {
 		return nil, err
 	}

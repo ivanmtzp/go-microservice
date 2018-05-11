@@ -38,12 +38,7 @@ func (d *Database) Close() error {
 	return nil
 }
 
-func (d *Database) HealthCheck() error {
-	var response []interface{}
-	return d.connection.RawQuery(d.healthCheckQuery).All(&response)
-}
-
-func New(p *Properties, healthCheckQuery string) (*Database, error) {
+func createConnection(p *Properties) (*pop.Connection, error) {
 	cd := &pop.ConnectionDetails{
 		Dialect: p.Dialect,
 		Database: p.Database,
@@ -61,6 +56,19 @@ func New(p *Properties, healthCheckQuery string) (*Database, error) {
 	if err := connection.Open(); err != nil {
 		return nil, fmt.Errorf("failed to open database connection %s", err)
 	}
+	return connection, nil
+}
+
+func (d *Database) HealthCheck() error {
+	var response []interface{}
+	return d.connection.RawQuery(d.healthCheckQuery).All(&response)
+}
+
+func NewDatabase(p *Properties, healthCheckQuery string) (*Database, error) {
+	connection, err := createConnection(p)
+	if err != nil {
+		return nil, err
+	}
 	db := &Database{
 		properties: p,
 		connection: connection,
@@ -70,9 +78,4 @@ func New(p *Properties, healthCheckQuery string) (*Database, error) {
 	}
 	return db, nil
 }
-
-
-
-
-
 
