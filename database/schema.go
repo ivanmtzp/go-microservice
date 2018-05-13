@@ -39,4 +39,11 @@ func (s* Schema) MigrateDatabase(migrationsPath string) error {
 	return mig.Up()
 }
 
+func (s *Schema) RecreateDatabase(migrationsPath string) error {
+	s.DropDatabase()
+	if err := s.CreateDatabase(); err != nil {
+		return err
+	}
+	return s.MigrateDatabase(migrationsPath)
+}
 

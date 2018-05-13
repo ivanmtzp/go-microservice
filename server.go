@@ -112,6 +112,16 @@ func (m GrpcClientsMap) Close(){
 	}
 }
 
+func (ms *MicroService) RecreateDatabase(migrationsPath string) error {
+	dbs := ms.settings.Database()
+
+	s, err := database.NewSchema(dbs)
+	if err != nil {
+		return err
+	}
+	return s.RecreateDatabase(migrationsPath)
+}
+
 func (ms *MicroService) WithDatabase(healthCheckQuery string) (*database.Database, error) {
 	dbs := ms.settings.Database()
 
