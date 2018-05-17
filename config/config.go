@@ -18,8 +18,6 @@ type Config struct {
 	viper *viper.Viper
 }
 
-type StringInterfaceMap map[string]interface{}
-
 func New() *Config {
 	return &Config{viper.New()}
 }
@@ -65,43 +63,10 @@ func (c *Config) GetBool(keys ...string) bool {
 	return c.viper.GetBool(strings.Join(keys, "."))
 }
 
-
-func (c *Config) GetStringMap(keys ...string)  StringInterfaceMap {
+func (c *Config) GetStringMap(keys ...string)  map[string]interface{} {
 	return c.viper.GetStringMap(strings.Join(keys, "."))
 }
 
-func (m StringInterfaceMap) GetString(key string) string {
-	return m[key].(string)
-}
-
-func (m StringInterfaceMap) GetInt(key string) int {
-	return m[key].(int)
-}
-
-func (m StringInterfaceMap) GetBool(key string) bool {
-	return m[key].(bool)
-}
-
-func (m StringInterfaceMap) GetStringWithDefault(key, value string) string {
-	if m[key] == nil {
-		return value
-	}
-	return m[key].(string)
-}
-
-func (m StringInterfaceMap) GetIntWithDefault(key string, value int) int {
-	if m[key] == nil {
-		return value
-	}
-	return m[key].(int)
-}
-
-func (m StringInterfaceMap) GetBoolWithDefault(key string, value bool) bool {
-	if m[key] == nil {
-		return value
-	}
-	return m[key].(bool)
-}
 
 
 

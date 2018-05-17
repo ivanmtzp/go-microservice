@@ -72,15 +72,14 @@ func (c *ConfigSettings) Log() *Log{
 }
 
 func (c *ConfigSettings) Database() *database.Properties {
-	m := c.config.GetStringMap("database")
 	return &database.Properties{
-		Dialect: m.GetString("dialect"),
-		Database: m.GetString("name"),
-		Host: m.GetString("host"),
-		Port: m.GetInt("port"),
-		User: m.GetString("user"),
-		Password: m.GetString("password"),
-		Pool: m.GetInt("pool"),
+		Dialect: c.config.GetString("database", "dialect"),
+		Database: c.config.GetString("database", "name"),
+		Host: c.config.GetString("database", "host"),
+		Port: c.config.GetInt("database", "port"),
+		User: c.config.GetString("database", "user"),
+		Password: c.config.GetString("database", "password"),
+		Pool: c.config.GetInt("database", "pool"),
 	}
 }
 
@@ -95,23 +94,24 @@ func (c *ConfigSettings) GrpcServer() *GrpcServer {
 func (c* ConfigSettings) GrpcClient() *GrpcClient {
 	endpoints := make(map[string]string)
 	for k, _ := range c.config.GetStringMap("grpc", "clients") {
-		m := c.config.GetStringMap("grpc", "clients", k)
-		endpoints[k] = fmt.Sprintf("%s:%d", m.GetString("host"), m.GetInt("port"))
+		endpoints[k] = fmt.Sprintf("%s:%d", c.config.GetString("grpc", "clients", k, "host"),
+			c.config.GetInt("grpc", "clients", k, "port"))
 	}
 	return &GrpcClient{Endpoints: endpoints}
 }
 
 func (c *ConfigSettings) Monitoring() *Monitoring {
 	var imp *InfluxDbMetricsPusher
-	m := c.config.GetStringMap("monitoring", "metrics", "influxdb_pusher")
-	if m != nil {
+	_, ok := c.config.HasKey("monitoring", "metrics", "influxdb_pusher")
+	if ok {
 		imp = &InfluxDbMetricsPusher{
-			Interval: time.Second * time.Duration(m["interval"].(int)),
+			Interval: time.Second * time.Duration(c.config.GetInt("monitoring", "metrics", "influxdb_pusher", "interval")),
 			InfluxDbProperties: &InfluxDbProperties{
-				Address: fmt.Sprintf("http://%s:%d",  m.GetString("host"), m.GetInt("port")),
-				Database: m.GetString("database"),
-				User:     m.GetStringWithDefault("user", ""),
-				Password: m.GetStringWithDefault("password", ""),
+				Address: fmt.Sprintf("http://%s:%d",  c.config.GetString("monitoring", "metrics", "influxdb_pusher", "host"),
+					c.config.GetInt("monitoring", "metrics", "influxdb_pusher", "port")),
+				Database: c.config.GetString("monitoring", "metrics", "influxdb_pusher", "database"),
+				User:     c.config.GetString("monitoring", "metrics", "influxdb_pusher", "user"),
+				Password: c.config.GetString("monitoring", "metrics", "influxdb_pusher", "password"),
 			},
 		}
 	}
@@ -125,26 +125,24 @@ func (c* ConfigSettings) RabbitMqBroker() *RabbitMqBroker {
 	queues := make(map[string]*broker.RabbitMqQueueProperties)
 	queuesConfig := c.config.GetStringMap("broker", "rabbitmq", "queues")
 	for k, _ := range queuesConfig {
-		m := c.config.GetStringMap("broker", "rabbitmq", "queues", k)
 		queues[k] = &broker.RabbitMqQueueProperties {
-			Name: m.GetString("name"),
-			Durable: m.GetBool("durable"),
-			AutoDelete: m.GetBool("auto_delete"),
-			Exclusive: m.GetBool("exclusive"),
-			NoWait: m.GetBool("no_wait"),
+			Name: c.config.GetString("broker", "rabbitmq", "queues", k, "name"),
+			Durable: c.config.GetBool("broker", "rabbitmq", "queues", k, "durable"),
+			AutoDelete: c.config.GetBool("broker", "rabbitmq", "queues", k, "auto_delete"),
+			Exclusive: c.config.GetBool("broker", "rabbitmq", "queues", k, "exclusive"),
+			NoWait: c.config.GetBool("broker", "rabbitmq", "queues", k, "no_wait"),
 		}
 	}
 	consumers :=  make(map[string]*broker.RabbitMqConsumerProperties)
 	consumersConfig := c.config.GetStringMap("broker", "rabbitmq", "consumers")
 	for k, _ := range consumersConfig {
-		m := c.config.GetStringMap("broker", "rabbitmq", "consumers", k)
 		consumers[k] = &broker.RabbitMqConsumerProperties {
-			Name: m.GetString("name"),
-			QueueName: m.GetString("queue_name"),
-			AutoAck: m.GetBool("auto_ack"),
-			Exclusive: m.GetBool("exclusive"),
-			NoLocal: m.GetBool("no_local"),
-			NoWait: m.GetBool("no_wait"),
+			Name: c.config.GetString("broker", "rabbitmq", "consumers", k, "name"),
+			QueueName: c.config.GetString("broker", "rabbitmq", "consumers", k, "queue_name"),
+			AutoAck: c.config.GetBool("broker", "rabbitmq", "consumers", k, "auto_ack"),
+			Exclusive: c.config.GetBool("broker", "rabbitmq", "consumers", k, "exclusive"),
+			NoLocal: c.config.GetBool("broker", "rabbitmq", "consumers", k, "no_local"),
+			NoWait: c.config.GetBool("broker", "rabbitmq", "consumers", k, "no_wait"),
 		}
 	}
 	return &RabbitMqBroker{
