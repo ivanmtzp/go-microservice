@@ -146,7 +146,9 @@ func (c* ConfigSettings) RabbitMqBroker() *RabbitMqBroker {
 		}
 	}
 	return &RabbitMqBroker{
-		Address: fmt.Sprintf("amqp://%s:%d/",
+		Address: fmt.Sprintf("amqp://%s:%s@%s:%d/",
+			c.config.GetString("broker", "rabbitmq", "user"),
+			c.config.GetString("broker", "rabbitmq", "password"),
 			c.config.GetString("broker", "rabbitmq", "host"),
 			c.config.GetInt("broker", "rabbitmq", "port")	),
 		PrefetchCount: c.config.GetInt("broker", "rabbitmq", "qos", "prefetch_count"),
